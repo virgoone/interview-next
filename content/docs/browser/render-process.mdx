@@ -1,0 +1,228 @@
+---
+title: 浏览器渲染流程
+---
+
+# 浏览器是如何渲染页面的？
+
+## 核心答案
+
+浏览器渲染页面是一个复杂的过程，主要分为**解析 HTML/CSS**、**构建 DOM/CSSOM 树**、**渲染树构建**、**布局（Layout）**、**绘制（Paint）**、**合成（Composite）** 等步骤。
+
+### 浏览器渲染的主要流程
+
+#### 1. 解析 HTML，构建 DOM 树（Document Object Model）
+
+- **过程**：HTML 解析器将 HTML 字节流转换为 DOM 树
+- **特点**：边下载边解析，不需要等待整个 HTML 下载完成
+- **结果**：生成 DOM 树，表示页面的结构
+
+```
+HTML 字节流 → HTML 解析器 → DOM 树
+```
+
+#### 2. 解析 CSS，构建 CSSOM 树（CSS Object Model）
+
+- **过程**：CSS 解析器将 CSS 规则转换为 CSSOM 树
+- **特点**：CSS 是阻塞渲染的资源，会阻塞页面渲染
+- **结果**：生成 CSSOM 树，表示页面的样式规则
+
+```
+CSS 字节流 → CSS 解析器 → CSSOM 树
+```
+
+#### 3. 构建渲染树（Render Tree）
+
+- **过程**：将 DOM 树和 CSSOM 树合并，生成渲染树
+- **规则**：只包含需要渲染的节点（排除 `display: none` 的元素）
+- **结果**：生成渲染树，包含可见元素及其样式信息
+
+```
+DOM 树 + CSSOM 树 → 渲染树
+```
+
+#### 4. 布局（Layout / Reflow）
+
+- **过程**：计算每个元素在页面中的位置和大小
+- **计算**：根据盒模型、定位、浮动等计算元素的几何属性
+- **结果**：确定每个元素的位置坐标
+
+```
+渲染树 → 布局计算 → 布局树（包含位置信息）
+```
+
+#### 5. 绘制（Paint）
+
+- **过程**：将布局树转换为屏幕上的像素
+- **分层**：浏览器会将页面分成多个图层（Layer）
+- **结果**：生成绘制指令列表
+
+```
+布局树 → 绘制 → 绘制指令
+```
+
+#### 6. 合成（Composite）
+
+- **过程**：将多个图层合成为最终的页面图像
+- **优化**：利用 GPU 加速合成
+- **结果**：显示在屏幕上
+
+```
+多个图层 → GPU 合成 → 最终图像
+```
+
+### 完整渲染流程图
+
+```
+HTML → DOM 树 ──┐
+                ├─→ 渲染树 → 布局 → 绘制 → 合成 → 屏幕
+CSS  → CSSOM 树 ─┘
+```
+
+### 关键性能优化点
+
+**1. 减少重排（Reflow）**
+- 避免频繁修改 DOM
+- 使用 `transform` 代替 `top/left`
+- 批量修改 DOM
+
+**2. 减少重绘（Repaint）**
+- 避免频繁修改样式
+- 使用 `will-change` 提示浏览器优化
+
+**3. 优化 CSS**
+- 避免深层嵌套选择器
+- 减少 CSS 文件大小
+- 使用关键 CSS
+
+## 延伸追问
+
+### 1. 什么是关键渲染路径（Critical Rendering Path）？
+
+**回答**：关键渲染路径是浏览器将 HTML、CSS、JavaScript 转换为屏幕像素的过程。
+
+**优化关键渲染路径**：
+1. **减少关键资源数量**：内联关键 CSS，延迟非关键 CSS
+2. **减少关键资源大小**：压缩、minify
+3. **缩短关键路径长度**：并行下载，减少阻塞
+
+**示例**：
+```html
+<!-- 关键 CSS 内联 -->
+<style>
+  /* 首屏关键样式 */
+  .header { }
+  .hero { }
+</style>
+
+<!-- 非关键 CSS 异步加载 -->
+<link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+```
+
+### 2. 浏览器如何解析 HTML？
+
+**回答**：HTML 解析过程：
+
+**1. 词法分析（Tokenization）**
+- 将 HTML 字符串转换为 Token（标签、属性、文本等）
+
+**2. 语法分析（Parsing）**
+- 将 Token 转换为 DOM 节点
+- 使用栈结构构建 DOM 树
+
+**3. 构建 DOM 树**
+- 遇到开始标签，创建元素节点
+- 遇到文本，创建文本节点
+- 遇到结束标签，完成当前节点
+
+**特点**：
+- **渐进式解析**：边下载边解析，不需要等待整个 HTML
+- **容错机制**：自动修复一些 HTML 错误
+- **阻塞 JavaScript**：遇到 `<script>` 标签会阻塞解析
+
+### 3. CSS 如何阻塞渲染？
+
+**回答**：CSS 阻塞渲染的原因：
+
+**1. 渲染阻塞**
+- CSS 是渲染阻塞资源
+- 浏览器必须等待 CSS 下载和解析完成才能渲染
+- 避免 FOUC（Flash of Unstyled Content）
+
+**2. 优化方法**：
+```html
+<!-- 内联关键 CSS -->
+<style>
+  /* 首屏关键样式 */
+</style>
+
+<!-- 非关键 CSS 异步加载 -->
+<link rel="preload" href="non-critical.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+<!-- 使用媒体查询 -->
+<link rel="stylesheet" media="print" href="print.css">
+```
+
+### 4. 什么是图层（Layer）？如何创建新图层？
+
+**回答**：图层是浏览器优化渲染的机制：
+
+**创建新图层的条件**：
+1. `transform` 或 `opacity` 动画
+2. `will-change` 属性
+3. `position: fixed`
+4. `video`、`canvas`、`iframe` 等元素
+5. 3D 变换（`transform: translateZ(0)`）
+
+**优势**：
+- 独立合成，不影响其他图层
+- GPU 加速
+- 减少重绘和重排
+
+**示例**：
+```css
+.animated {
+  will-change: transform; /* 提示浏览器创建新图层 */
+  transform: translateZ(0); /* 强制创建新图层 */
+}
+```
+
+### 5. 浏览器渲染的优化策略？
+
+**回答**：优化策略：
+
+**1. 减少重排和重绘**
+```javascript
+// 不推荐：多次重排
+element.style.width = '100px';
+element.style.height = '100px';
+
+// 推荐：批量修改
+element.style.cssText = 'width: 100px; height: 100px;';
+```
+
+**2. 使用 DocumentFragment**
+```javascript
+const fragment = document.createDocumentFragment();
+// 添加元素到 fragment
+container.appendChild(fragment);
+```
+
+**3. 使用 requestAnimationFrame**
+```javascript
+function animate() {
+  // 修改样式
+  requestAnimationFrame(animate);
+}
+```
+
+**4. 使用 transform 和 opacity**
+```css
+/* 推荐：触发合成层 */
+.element {
+  transform: translateX(100px);
+  opacity: 0.5;
+}
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

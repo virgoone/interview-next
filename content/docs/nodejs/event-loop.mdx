@@ -1,0 +1,157 @@
+---
+title: Node.js 事件循环
+---
+
+# Node.js 的事件循环机制是什么？
+
+## 核心答案
+
+Node.js 事件循环是**单线程异步非阻塞**的核心，通过**6个阶段循环执行**，让单线程能够处理大量并发操作。
+
+### 六个阶段（按顺序执行）
+
+```
+1. Timer        → 执行 setTimeout、setInterval 回调
+2. Pending      → 执行延迟的 I/O 回调
+3. Idle/Prepare → 内部使用
+4. Poll         → 获取 I/O 事件，执行 I/O 回调（最重要）
+5. Check        → 执行 setImmediate 回调
+6. Close        → 执行关闭回调（如 socket.on('close')）
+```
+
+### 执行流程
+
+```
+开始 → Timer → Pending → Idle → Poll → Check → Close → 回到 Timer（循环）
+```
+
+**关键点**：
+- **Poll 阶段**：如果队列为空，会**等待**新的 I/O 事件（阻塞）
+- **微任务**：在每个阶段之间执行（`process.nextTick` > `Promise.then`）
+
+### 执行顺序示例
+
+```javascript
+console.log('1');
+
+setTimeout(() => console.log('2'), 0);
+setImmediate(() => console.log('3'));
+process.nextTick(() => console.log('4'));
+Promise.resolve().then(() => console.log('5'));
+
+console.log('6');
+
+// 输出：1, 6, 4, 5, 2, 3
+// 同步代码 → nextTick → Promise → Timer → Check
+```
+
+## 延伸追问
+
+### 1. setTimeout 和 setImmediate 的执行顺序？
+
+**回答**：**不确定**，取决于 I/O 操作：
+
+```javascript
+// 场景1：有 I/O 操作（如 fs.readFile）
+fs.readFile('file.txt', () => {
+  setTimeout(() => console.log('timeout'), 0);
+  setImmediate(() => console.log('immediate'));
+  // 输出：immediate, timeout（I/O 回调在 Poll 阶段，Check 先执行）
+});
+
+// 场景2：无 I/O 操作
+setTimeout(() => console.log('timeout'), 0);
+setImmediate(() => console.log('immediate'));
+// 输出：timeout, immediate（Timer 阶段先执行）
+```
+
+**原因**：Timer 在 Poll 之前，但 setTimeout 最小延迟 1ms，可能被 Check 阶段抢先。
+
+### 2. process.nextTick 为什么优先级最高？
+
+**回答**：**在每个阶段之间立即执行**，可能阻塞事件循环：
+
+```javascript
+// nextTick 会阻塞后续阶段
+process.nextTick(() => {
+  // 大量计算
+  for (let i = 0; i < 1000000000; i++) {}
+});
+
+// 后续的 Timer、Poll 等阶段被阻塞
+```
+
+**使用场景**：确保回调在当前阶段之后、下一阶段之前执行（如错误处理）。
+
+### 3. Node.js 如何实现异步 I/O？
+
+**回答**：**libuv 库**处理：
+
+- **网络 I/O**：使用 epoll（Linux）/kqueue（macOS）事件通知，**非阻塞**
+- **文件 I/O**：使用**线程池**（默认 4 个线程），**阻塞线程但不阻塞主线程**
+- **回调注册**：I/O 操作完成后，回调放入对应队列，事件循环执行
+
+**关键**：主线程始终不阻塞，通过事件循环处理所有 I/O 回调。
+
+### 4. Node.js 和浏览器事件循环的区别？
+
+**回答**：核心区别：
+
+| 特性 | Node.js | 浏览器 |
+|------|---------|--------|
+| **阶段** | 6 个固定阶段 | 宏任务 + 微任务 |
+| **nextTick** | ✅ 有（最高优先级） | ❌ 无 |
+| **setImmediate** | ✅ 有 | ❌ 无 |
+| **requestAnimationFrame** | ❌ 无 | ✅ 有 |
+| **I/O 处理** | libuv 线程池 | 浏览器 API |
+
+**执行顺序对比**：
+```javascript
+// Node.js
+同步 → nextTick → Promise → Timer → Poll → Check
+
+// 浏览器
+同步 → Promise → Timer → 渲染 → 下一轮
+```
+
+### 5. 如何避免事件循环阻塞？
+
+**回答**：三原则：
+
+**1. 避免同步阻塞操作**
+```javascript
+// ❌ 阻塞事件循环
+const data = fs.readFileSync('file.txt');
+
+// ✅ 使用异步
+fs.readFile('file.txt', (err, data) => {});
+```
+
+**2. 避免 CPU 密集型任务**
+```javascript
+// ❌ 阻塞主线程
+for (let i = 0; i < 1000000000; i++) {}
+
+// ✅ 使用 Worker Threads
+const { Worker } = require('worker_threads');
+```
+
+**3. 使用 setImmediate 分解任务**
+```javascript
+function processLargeArray(array) {
+  let index = 0;
+  function processChunk() {
+    // 处理 1000 个元素
+    const chunk = array.slice(index, index + 1000);
+    chunk.forEach(process);
+    index += 1000;
+    
+    if (index < array.length) {
+      setImmediate(processChunk); // 让出控制权
+    }
+  }
+  processChunk();
+}
+```
+
+> （注：文档部分内容可能由 AI 生成）

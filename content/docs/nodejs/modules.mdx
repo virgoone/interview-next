@@ -1,0 +1,254 @@
+---
+title: Node.js 模块系统
+---
+
+# Node.js 的模块系统是什么？CommonJS 和 ES Modules 的区别？
+
+## 核心答案
+
+Node.js 支持两种模块系统：**CommonJS**（默认）和 **ES Modules**（ESM）。
+
+### CommonJS（默认）
+
+**导出**：
+```javascript
+// 方式1：module.exports
+module.exports = {
+  name: 'test',
+  getName: function() {
+    return this.name;
+  }
+};
+
+// 方式2：exports（module.exports 的引用）
+exports.name = 'test';
+exports.getName = function() {
+  return this.name;
+};
+```
+
+**导入**：
+```javascript
+// 导入整个模块
+const module = require('./module');
+
+// 解构导入
+const { name, getName } = require('./module');
+```
+
+**特点**：
+- 运行时加载
+- 同步加载
+- 动态导入（可以在条件语句中使用）
+- 缓存机制（相同模块只加载一次）
+
+### ES Modules
+
+**导出**：
+```javascript
+// 命名导出
+export const name = 'test';
+export function getName() {
+  return name;
+}
+
+// 默认导出
+export default {
+  name: 'test',
+  getName: function() {
+    return this.name;
+  }
+};
+```
+
+**导入**：
+```javascript
+// 命名导入
+import { name, getName } from './module.js';
+
+// 默认导入
+import module from './module.js';
+
+// 混合导入
+import module, { name } from './module.js';
+
+// 动态导入
+const module = await import('./module.js');
+```
+
+**特点**：
+- 编译时加载
+- 异步加载
+- 静态分析
+- 需要文件扩展名（.js）
+
+### 使用 ES Modules
+
+**方式1：package.json 设置**
+```json
+{
+  "type": "module"
+}
+```
+
+**方式2：文件扩展名**
+```javascript
+// 使用 .mjs 扩展名
+// module.mjs
+export const name = 'test';
+```
+
+## 延伸追问
+
+### 1. require 的加载机制？
+
+**回答**：加载顺序：
+
+**1. 核心模块**
+```javascript
+const fs = require('fs'); // 核心模块
+```
+
+**2. 文件模块**
+```javascript
+const module = require('./module'); // 相对路径
+const module = require('/path/to/module'); // 绝对路径
+```
+
+**3. node_modules**
+```javascript
+const express = require('express'); // 从 node_modules 查找
+```
+
+**查找顺序**：
+```
+1. 当前目录/node_modules
+2. 父目录/node_modules
+3. 一直向上查找直到根目录
+```
+
+**4. 文件查找**
+```
+require('./module')
+→ ./module.js
+→ ./module.json
+→ ./module/index.js
+```
+
+### 2. module.exports 和 exports 的区别？
+
+**回答**：区别：
+
+**关系**：
+```javascript
+// 初始状态
+exports === module.exports; // true
+
+// exports 是 module.exports 的引用
+```
+
+**区别**：
+```javascript
+// 正确：修改 exports 的属性
+exports.name = 'test'; // 等同于 module.exports.name = 'test'
+
+// 错误：重新赋值 exports
+exports = { name: 'test' }; // 不会生效
+
+// 正确：直接赋值 module.exports
+module.exports = { name: 'test' };
+```
+
+**原因**：
+- `exports` 只是 `module.exports` 的引用
+- 重新赋值 `exports` 不会改变 `module.exports`
+- 最终返回的是 `module.exports`
+
+### 3. CommonJS 和 ES Modules 的互操作？
+
+**回答**：互操作方式：
+
+**CommonJS 中使用 ES Modules**：
+```javascript
+// 使用动态导入
+const module = await import('./module.mjs');
+```
+
+**ES Modules 中使用 CommonJS**：
+```javascript
+// 可以导入 CommonJS 模块
+import module from './module.js'; // 如果是 CommonJS
+
+// 但有一些限制
+// - 不能使用命名导入
+// - 只能使用默认导入
+```
+
+**注意**：
+- 互操作有一些限制
+- 建议统一使用一种模块系统
+
+### 4. 模块缓存机制？
+
+**回答**：缓存机制：
+
+**CommonJS**：
+```javascript
+// 第一次加载
+const module1 = require('./module');
+
+// 第二次加载（从缓存读取）
+const module2 = require('./module');
+
+module1 === module2; // true（同一个对象）
+```
+
+**ES Modules**：
+```javascript
+// 也有缓存机制
+import module1 from './module.js';
+import module2 from './module.js';
+
+module1 === module2; // true
+```
+
+**清除缓存**：
+```javascript
+// CommonJS：删除缓存
+delete require.cache[require.resolve('./module')];
+
+// ES Modules：不支持清除缓存
+```
+
+### 5. 循环依赖问题？
+
+**回答**：问题和处理：
+
+**CommonJS 循环依赖**：
+```javascript
+// a.js
+const b = require('./b');
+module.exports = { name: 'a' };
+
+// b.js
+const a = require('./a');
+module.exports = { name: 'b' };
+
+// 问题：a 可能获取到不完整的 b
+```
+
+**解决**：
+```javascript
+// a.js
+module.exports = { name: 'a' };
+const b = require('./b'); // 延迟加载
+```
+
+**ES Modules 循环依赖**：
+```javascript
+// ES Modules 支持循环依赖
+// 但需要注意导出顺序
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

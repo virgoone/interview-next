@@ -1,0 +1,229 @@
+---
+title: Node.js 基础
+---
+
+# Node.js 是什么？它的特点和优势是什么？
+
+## 核心答案
+
+**Node.js**是一个基于 Chrome V8 引擎的 JavaScript 运行时环境，让 JavaScript 可以在服务器端运行。
+
+### Node.js 的特点
+
+**1. 基于 V8 引擎**
+- 使用 Chrome V8 JavaScript 引擎
+- 高性能的 JavaScript 执行
+- 持续的性能优化
+
+**2. 事件驱动**
+- 基于事件循环机制
+- 非阻塞 I/O 模型
+- 适合 I/O 密集型应用
+
+**3. 单线程**
+- 主线程是单线程
+- 通过事件循环处理并发
+- 避免线程同步问题
+
+**4. 异步非阻塞**
+- I/O 操作是异步的
+- 不会阻塞主线程
+- 高并发处理能力
+
+### Node.js 的优势
+
+**1. 高性能**
+- V8 引擎性能优秀
+- 非阻塞 I/O，高并发
+- 适合处理大量并发连接
+
+**2. 统一语言**
+- 前后端使用同一语言（JavaScript）
+- 代码复用
+- 降低学习成本
+
+**3. 丰富的生态**
+- npm 包管理器
+- 大量开源包
+- 快速开发
+
+**4. 适合的场景**
+- Web 服务器
+- API 服务
+- 实时应用（WebSocket）
+- 微服务
+- 工具脚本
+
+### Node.js 的架构
+
+```
+应用层（JavaScript）
+    ↓
+Node.js 核心模块（fs、http、path 等）
+    ↓
+V8 引擎（JavaScript 执行）
+    ↓
+libuv（事件循环、异步 I/O）
+    ↓
+操作系统
+```
+
+## 延伸追问
+
+### 1. Node.js 和浏览器的区别？
+
+**回答**：主要区别：
+
+| 特性 | Node.js | 浏览器 |
+|------|---------|--------|
+| **全局对象** | `global` | `window` |
+| **DOM** | ❌ 无 | ✅ 有 |
+| **文件系统** | ✅ 有 | ❌ 无 |
+| **模块系统** | CommonJS/ESM | ES Modules |
+| **用途** | 服务器端 | 客户端 |
+
+**示例**：
+```javascript
+// Node.js
+const fs = require('fs');
+fs.readFile('file.txt', (err, data) => {
+  console.log(data);
+});
+
+// 浏览器：无法使用 fs 模块
+```
+
+### 2. Node.js 的事件循环机制？
+
+**回答**：事件循环阶段：
+
+**1. Timer 阶段**
+- 执行 `setTimeout`、`setInterval` 回调
+
+**2. Pending Callbacks 阶段**
+- 执行延迟的 I/O 回调
+
+**3. Idle, Prepare 阶段**
+- 内部使用
+
+**4. Poll 阶段**
+- 获取新的 I/O 事件
+- 执行 I/O 相关回调
+
+**5. Check 阶段**
+- 执行 `setImmediate` 回调
+
+**6. Close Callbacks 阶段**
+- 执行关闭回调（如 `socket.on('close')`）
+
+**执行顺序**：
+```javascript
+console.log('1');
+
+setTimeout(() => console.log('2'), 0);
+setImmediate(() => console.log('3'));
+process.nextTick(() => console.log('4'));
+
+Promise.resolve().then(() => console.log('5'));
+
+console.log('6');
+
+// 输出：1, 6, 4, 5, 2, 3
+// nextTick > Promise > Timer > setImmediate
+```
+
+### 3. Node.js 如何处理高并发？
+
+**回答**：处理方式：
+
+**1. 事件循环**
+- 单线程处理多个请求
+- 非阻塞 I/O
+- 高并发能力
+
+**2. 异步 I/O**
+```javascript
+// 异步读取文件，不阻塞
+fs.readFile('file.txt', (err, data) => {
+  // 回调执行
+});
+
+// 主线程继续执行其他代码
+```
+
+**3. 集群模式**
+```javascript
+const cluster = require('cluster');
+const os = require('os');
+
+if (cluster.isMaster) {
+  // 创建子进程
+  for (let i = 0; i < os.cpus().length; i++) {
+    cluster.fork();
+  }
+} else {
+  // 子进程运行应用
+  require('./app.js');
+}
+```
+
+**4. 负载均衡**
+- 使用 Nginx 等反向代理
+- 分发请求到多个 Node.js 实例
+
+### 4. CommonJS 和 ES Modules 的区别？
+
+**回答**：主要区别：
+
+**CommonJS（Node.js 默认）**
+```javascript
+// 导出
+module.exports = { name: 'test' };
+exports.name = 'test';
+
+// 导入
+const module = require('./module');
+```
+
+**ES Modules**
+```javascript
+// 导出
+export const name = 'test';
+export default { name: 'test' };
+
+// 导入
+import { name } from './module';
+import module from './module';
+```
+
+**区别**：
+- **加载时机**：CommonJS 运行时加载，ESM 编译时加载
+- **同步/异步**：CommonJS 同步，ESM 异步
+- **动态导入**：CommonJS 支持，ESM 使用 `import()`
+
+### 5. Node.js 的适用场景？
+
+**回答**：适用场景：
+
+**1. Web 服务器**
+- Express、Koa、Fastify
+- RESTful API
+- 微服务
+
+**2. 实时应用**
+- WebSocket 服务器
+- 聊天应用
+- 实时协作
+
+**3. 工具开发**
+- 构建工具（Webpack、Vite）
+- 命令行工具
+- 自动化脚本
+
+**4. 不适合的场景**
+- CPU 密集型任务（如图像处理、加密计算）
+- 需要多线程的应用
+- 需要大量同步操作的应用
+
+> （注：文档部分内容可能由 AI 生成）
+

@@ -1,0 +1,30 @@
+---
+title: React 渲染机制
+---
+
+# React 渲染经历了什么？（调度 + Diff）
+
+## 核心答案
+
+React渲染分三大阶段，依赖Fiber架构实现可中断渲染：
+
+**1. 调度阶段（Scheduler）**：基于优先级调度任务，利用浏览器空闲时间执行，高优先级任务（如用户输入）可打断低优先级任务，避免UI卡顿。
+
+**2. 协调阶段（Reconciliation）**：通过Diff算法对比新旧VDOM，核心策略为同层比较、类型判断、列表key优化，计算最小更新差异。
+
+**3. 提交阶段（Commit）**：同步将补丁集应用到真实DOM，分beforeMutation（执行销毁函数）、mutation（操作DOM）、layout（执行依赖DOM的操作）三步。
+
+## 延伸追问
+
+- **1. Fiber架构的核心思想是什么？**——将渲染任务拆分为链表结构，支持可中断、可恢复、按优先级调度。
+
+- **2. Diff算法中key的作用和原理？为什么不推荐用索引作为key？**——key是节点唯一标识，用于快速定位增删改；索引作为key会因列表操作导致节点错位、性能下降。
+
+- **3. React 18的Concurrent Rendering对调度阶段有什么优化？**——引入并发更新机制，高优先级任务可打断低优先级任务，避免阻塞UI响应。
+
+- **4. useEffect和useLayoutEffect的执行时机差异？**——useEffect在DOM更新后异步执行（不阻塞），useLayoutEffect在DOM更新后同步执行（阻塞渲染）。
+
+- **5. 如何优化React渲染性能？**——用memo/useMemo/useCallback缓存，列表用虚拟列表，避免不必要重渲染。
+
+> （注：文档部分内容可能由 AI 生成）
+

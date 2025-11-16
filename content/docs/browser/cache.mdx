@@ -1,0 +1,260 @@
+---
+title: 浏览器缓存机制
+---
+
+# 浏览器的缓存机制是什么？如何设置缓存？
+
+## 核心答案
+
+浏览器缓存是提高页面加载速度的重要机制，通过存储已请求的资源，减少网络请求和服务器负载。浏览器缓存主要分为**强缓存**和**协商缓存**两种。
+
+### 缓存类型
+
+#### 1. 强缓存（Strong Cache）
+
+**特点**：浏览器直接使用缓存，不向服务器发送请求。
+
+**控制字段**：
+
+**1. Expires（HTTP/1.0）**
+```http
+Expires: Wed, 21 Oct 2024 07:28:00 GMT
+```
+- 指定资源的过期时间（绝对时间）
+- 问题：依赖客户端时间，可能不准确
+
+**2. Cache-Control（HTTP/1.1，推荐）**
+```http
+Cache-Control: max-age=3600
+Cache-Control: no-cache
+Cache-Control: no-store
+Cache-Control: public
+Cache-Control: private
+```
+
+**常用指令**：
+- `max-age=3600`：资源有效期 3600 秒
+- `no-cache`：需要向服务器验证
+- `no-store`：不缓存，每次都请求
+- `public`：可以被任何缓存存储
+- `private`：只能被私有缓存存储
+- `must-revalidate`：过期后必须验证
+
+#### 2. 协商缓存（Negotiation Cache）
+
+**特点**：浏览器向服务器验证缓存是否有效，如果有效则使用缓存（304），否则返回新资源。
+
+**控制字段**：
+
+**1. Last-Modified / If-Modified-Since**
+```http
+# 响应头
+Last-Modified: Wed, 21 Oct 2024 07:28:00 GMT
+
+# 请求头（下次请求时）
+If-Modified-Since: Wed, 21 Oct 2024 07:28:00 GMT
+```
+- 基于文件修改时间
+- 问题：精度只有秒级，可能不准确
+
+**2. ETag / If-None-Match（推荐）**
+```http
+# 响应头
+ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
+
+# 请求头（下次请求时）
+If-None-Match: "33a64df551425fcc55e4d42a148795d9f25f89d4"
+```
+- 基于文件内容的哈希值
+- 更准确，但需要计算资源
+
+### 缓存流程
+
+```
+请求资源
+  ↓
+检查强缓存（Cache-Control/Expires）
+  ↓
+是否过期？
+  ├─ 未过期 → 使用缓存（200 from cache）
+  └─ 已过期 → 检查协商缓存
+      ↓
+      发送请求（带 If-None-Match/If-Modified-Since）
+      ↓
+      服务器验证
+      ↓
+      是否有效？
+      ├─ 有效 → 304 Not Modified（使用缓存）
+      └─ 无效 → 200 OK（返回新资源）
+```
+
+### 缓存策略
+
+**1. 静态资源（长期缓存）**
+```http
+Cache-Control: max-age=31536000, public
+```
+- HTML、CSS、JS、图片等
+- 使用版本号或哈希值更新
+
+**2. HTML 文件（不缓存或短缓存）**
+```http
+Cache-Control: no-cache
+# 或
+Cache-Control: max-age=0, must-revalidate
+```
+- HTML 经常更新，需要及时获取最新版本
+
+**3. API 数据（根据业务需求）**
+```http
+Cache-Control: no-cache
+# 或
+Cache-Control: max-age=60
+```
+- 需要实时性的数据不缓存
+- 可以接受延迟的数据可以短时间缓存
+
+## 延伸追问
+
+### 1. Cache-Control 和 Expires 的区别？
+
+**回答**：主要区别：
+
+| 特性 | Expires | Cache-Control |
+|------|---------|---------------|
+| **HTTP 版本** | HTTP/1.0 | HTTP/1.1 |
+| **时间类型** | 绝对时间 | 相对时间（秒） |
+| **优先级** | 低 | 高（同时存在时） |
+| **灵活性** | 低 | 高（多个指令） |
+
+**示例**：
+```http
+# Expires：绝对时间
+Expires: Wed, 21 Oct 2024 07:28:00 GMT
+
+# Cache-Control：相对时间（更灵活）
+Cache-Control: max-age=3600, public
+```
+
+**优先级**：Cache-Control 优先级高于 Expires
+
+### 2. ETag 和 Last-Modified 的区别？
+
+**回答**：主要区别：
+
+| 特性 | Last-Modified | ETag |
+|------|---------------|------|
+| **精度** | 秒级 | 精确（基于内容） |
+| **问题** | 修改时间相同但内容不同 | 无 |
+| **性能** | 好（只需读取时间） | 稍差（需要计算哈希） |
+| **使用** | 简单场景 | 复杂场景（推荐） |
+
+**ETag 的优势**：
+- 更准确：基于文件内容，而不是修改时间
+- 解决 Last-Modified 的问题：
+  - 文件修改但内容相同
+  - 修改时间精度不够
+  - 某些服务器无法准确获取修改时间
+
+### 3. 如何实现缓存更新？
+
+**回答**：更新策略：
+
+**1. 文件名版本号**
+```html
+<link rel="stylesheet" href="style.v2.css">
+<script src="app.v2.js"></script>
+```
+- 文件名改变，强制浏览器获取新资源
+
+**2. 文件名哈希值**
+```html
+<link rel="stylesheet" href="style.a1b2c3d4.css">
+<script src="app.e5f6g7h8.js"></script>
+```
+- 内容改变，哈希值改变，文件名改变
+
+**3. 查询参数**
+```html
+<link rel="stylesheet" href="style.css?v=2">
+<script src="app.js?v=2"></script>
+```
+- 简单但不推荐（某些代理服务器可能不缓存）
+
+**4. Service Worker**
+```javascript
+// 控制缓存策略
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
+  );
+});
+```
+
+### 4. 浏览器缓存的位置？
+
+**回答**：缓存存储位置：
+
+**1. Memory Cache（内存缓存）**
+- 存储在内存中
+- 速度快，但关闭标签页后清除
+- 主要用于当前会话的资源
+
+**2. Disk Cache（磁盘缓存）**
+- 存储在硬盘中
+- 速度较慢，但持久化
+- 用于长期缓存的资源
+
+**3. Service Worker Cache**
+- 由 Service Worker 控制
+- 可以自定义缓存策略
+- 支持离线访问
+
+**4. Push Cache**
+- HTTP/2 服务器推送的缓存
+- 会话级别，关闭标签页后清除
+
+### 5. 如何设置合理的缓存策略？
+
+**回答**：最佳实践：
+
+**1. HTML 文件**
+```http
+Cache-Control: no-cache
+# 或
+Cache-Control: max-age=0, must-revalidate
+```
+- HTML 经常更新，需要及时获取
+
+**2. CSS/JS 文件**
+```http
+Cache-Control: max-age=31536000, public
+```
+- 长期缓存，使用版本号或哈希值更新
+
+**3. 图片资源**
+```http
+Cache-Control: max-age=2592000, public
+```
+- 中等缓存时间，图片更新频率较低
+
+**4. API 接口**
+```http
+Cache-Control: no-cache
+# 或根据业务需求
+Cache-Control: max-age=60
+```
+- 需要实时性的不缓存
+- 可以接受延迟的短时间缓存
+
+**5. 设置 ETag**
+```http
+ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
+Cache-Control: max-age=3600, must-revalidate
+```
+- 结合使用，提高缓存效率
+
+> （注：文档部分内容可能由 AI 生成）
+

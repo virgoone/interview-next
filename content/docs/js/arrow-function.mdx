@@ -1,0 +1,365 @@
+---
+title: 箭头函数与普通函数
+---
+
+# 箭头函数和普通函数的区别是什么？
+
+## 核心答案
+
+箭头函数（Arrow Function）是 ES6 引入的语法糖，提供了更简洁的函数写法，但在 `this` 绑定、`arguments`、构造函数等方面与普通函数有重要区别。
+
+### 语法对比
+
+**普通函数**：
+```javascript
+function add(a, b) {
+  return a + b;
+}
+
+const add = function(a, b) {
+  return a + b;
+};
+```
+
+**箭头函数**：
+```javascript
+const add = (a, b) => {
+  return a + b;
+};
+
+// 简写形式
+const add = (a, b) => a + b;
+```
+
+### 核心区别
+
+#### 1. this 绑定
+
+**普通函数**：`this` 在调用时确定，取决于调用方式
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name; // this 指向 obj
+  }
+};
+
+obj.getName(); // 'Object'
+
+const getName = obj.getName;
+getName(); // undefined（this 指向全局对象）
+```
+
+**箭头函数**：`this` 在定义时确定，继承外层作用域的 `this`
+```javascript
+const obj = {
+  name: 'Object',
+  getName: () => {
+    return this.name; // this 指向全局对象
+  }
+};
+
+obj.getName(); // undefined
+
+// 常见用法：解决 this 问题
+const obj = {
+  name: 'Object',
+  getName: function() {
+    setTimeout(() => {
+      console.log(this.name); // 'Object'（继承外层 this）
+    }, 100);
+  }
+};
+```
+
+#### 2. arguments 对象
+
+**普通函数**：有 `arguments` 对象
+```javascript
+function test() {
+  console.log(arguments); // Arguments(3) [1, 2, 3]
+}
+
+test(1, 2, 3);
+```
+
+**箭头函数**：没有 `arguments` 对象
+```javascript
+const test = () => {
+  console.log(arguments); // 报错：arguments is not defined
+};
+
+// 使用剩余参数代替
+const test = (...args) => {
+  console.log(args); // [1, 2, 3]
+};
+
+test(1, 2, 3);
+```
+
+#### 3. 构造函数
+
+**普通函数**：可以作为构造函数
+```javascript
+function Person(name) {
+  this.name = name;
+}
+
+const person = new Person('John'); // 可以
+```
+
+**箭头函数**：不能作为构造函数
+```javascript
+const Person = (name) => {
+  this.name = name;
+};
+
+const person = new Person('John'); // 报错：Person is not a constructor
+```
+
+#### 4. prototype 属性
+
+**普通函数**：有 `prototype` 属性
+```javascript
+function Test() {}
+console.log(Test.prototype); // {constructor: ƒ}
+```
+
+**箭头函数**：没有 `prototype` 属性
+```javascript
+const Test = () => {};
+console.log(Test.prototype); // undefined
+```
+
+#### 5. 变量提升
+
+**普通函数**：函数声明会提升
+```javascript
+sayHello(); // 'Hello'（可以调用）
+
+function sayHello() {
+  console.log('Hello');
+}
+```
+
+**箭头函数**：不会提升（作为变量提升）
+```javascript
+sayHello(); // 报错：Cannot access 'sayHello' before initialization
+
+const sayHello = () => {
+  console.log('Hello');
+};
+```
+
+#### 6. 方法定义
+
+**普通函数**：可以作为对象方法
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name; // 'Object'
+  }
+};
+```
+
+**箭头函数**：不适合作为对象方法
+```javascript
+const obj = {
+  name: 'Object',
+  getName: () => {
+    return this.name; // undefined（this 指向全局对象）
+  }
+};
+```
+
+## 延伸追问
+
+### 1. 什么时候使用箭头函数，什么时候使用普通函数？
+
+**回答**：使用建议：
+
+**使用箭头函数**：
+- 回调函数（解决 this 问题）
+- 数组方法（map、filter、reduce 等）
+- 事件处理函数（需要绑定 this 时）
+- 简短的函数表达式
+
+```javascript
+// 回调函数
+setTimeout(() => {
+  console.log('Hello');
+}, 100);
+
+// 数组方法
+const doubled = [1, 2, 3].map(x => x * 2);
+
+// 事件处理
+button.addEventListener('click', () => {
+  console.log(this); // 继承外层 this
+});
+```
+
+**使用普通函数**：
+- 对象方法（需要访问 this）
+- 构造函数
+- 需要 arguments 对象
+- 需要函数提升
+
+```javascript
+// 对象方法
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name; // 需要 this
+  }
+};
+
+// 构造函数
+function Person(name) {
+  this.name = name;
+}
+
+// 需要 arguments
+function sum() {
+  return Array.from(arguments).reduce((a, b) => a + b, 0);
+}
+```
+
+### 2. 箭头函数中的 this 如何确定？
+
+**回答**：确定规则：
+
+**1. 继承外层作用域的 this**
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    const inner = () => {
+      return this.name; // 继承 getName 的 this
+    };
+    return inner();
+  }
+};
+
+obj.getName(); // 'Object'
+```
+
+**2. 不能通过 call/apply/bind 改变**
+```javascript
+const arrow = () => {
+  return this;
+};
+
+const obj = { name: 'Object' };
+
+arrow.call(obj); // 仍然是全局对象，不是 obj
+```
+
+**3. 全局作用域中的箭头函数**
+```javascript
+const arrow = () => {
+  return this; // 指向全局对象（浏览器中是 window）
+};
+```
+
+### 3. 箭头函数可以访问外层函数的 arguments 吗？
+
+**回答**：可以，通过作用域链：
+
+```javascript
+function outer() {
+  const inner = () => {
+    console.log(arguments); // 访问外层函数的 arguments
+  };
+  inner();
+}
+
+outer(1, 2, 3); // Arguments(3) [1, 2, 3]
+```
+
+**但推荐使用剩余参数**：
+```javascript
+function outer(...args) {
+  const inner = () => {
+    console.log(args); // 更清晰
+  };
+  inner();
+}
+```
+
+### 4. 箭头函数和普通函数的性能差异？
+
+**回答**：性能对比：
+
+**1. 创建性能**
+- 箭头函数稍快（没有 prototype）
+- 差异很小，可以忽略
+
+**2. 执行性能**
+- 基本相同
+- 主要差异在 this 绑定
+
+**3. 内存占用**
+- 箭头函数没有 prototype，占用稍少
+- 差异很小
+
+**实际影响**：
+- 性能差异可以忽略
+- 选择主要基于功能需求，而非性能
+
+### 5. 如何转换箭头函数和普通函数？
+
+**回答**：转换方法：
+
+**箭头函数转普通函数**：
+```javascript
+// 箭头函数
+const add = (a, b) => a + b;
+
+// 普通函数
+function add(a, b) {
+  return a + b;
+}
+
+// 注意 this 绑定
+const obj = {
+  name: 'Object',
+  getName: () => this.name, // this 指向全局
+};
+
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name; // this 指向 obj
+  }
+};
+```
+
+**普通函数转箭头函数**：
+```javascript
+// 普通函数
+function add(a, b) {
+  return a + b;
+}
+
+// 箭头函数
+const add = (a, b) => a + b;
+
+// 注意 this 绑定
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name; // this 指向 obj
+  }
+};
+
+// 如果转成箭头函数，this 会改变
+const obj = {
+  name: 'Object',
+  getName: () => this.name, // this 指向全局，行为改变！
+};
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

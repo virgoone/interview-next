@@ -1,0 +1,310 @@
+---
+title: 作用域与 this 指向
+---
+
+# JavaScript 中的作用域和 this 指向
+
+## 主问题：JavaScript 中的作用域有哪些类型？this 的指向规则是什么？
+
+### 核心回答
+
+#### 作用域（Scope）
+
+作用域决定了变量和函数的可访问性。JavaScript 有三种作用域：
+
+**1. 全局作用域（Global Scope）**
+- 在函数外部定义的变量
+- 在任何地方都可以访问
+- 全局对象（浏览器中是 `window`，Node.js 中是 `global`）
+
+```javascript
+var globalVar = '全局变量';
+
+function test() {
+  console.log(globalVar); // 可以访问
+}
+
+console.log(globalVar); // 可以访问
+```
+
+**2. 函数作用域（Function Scope）**
+- 使用 `var` 声明的变量具有函数作用域
+- 在函数内部定义的变量，只能在函数内部访问
+
+```javascript
+function test() {
+  var functionVar = '函数作用域变量';
+  console.log(functionVar); // 可以访问
+}
+
+console.log(functionVar); // 报错：functionVar is not defined
+```
+
+**3. 块级作用域（Block Scope）**
+- 使用 `let` 和 `const` 声明的变量具有块级作用域
+- 在 `{}` 代码块内定义的变量，只能在块内访问
+
+```javascript
+if (true) {
+  let blockVar = '块级作用域变量';
+  const blockConst = '块级常量';
+  console.log(blockVar); // 可以访问
+}
+
+console.log(blockVar); // 报错：blockVar is not defined
+```
+
+#### 作用域链（Scope Chain）
+
+作用域链是 JavaScript 查找变量的机制：
+1. 先在当前作用域查找
+2. 如果找不到，向上一级作用域查找
+3. 一直找到全局作用域
+4. 如果全局作用域也没有，报错
+
+```javascript
+var global = 'global';
+
+function outer() {
+  var outerVar = 'outer';
+  
+  function inner() {
+    var innerVar = 'inner';
+    console.log(innerVar);  // inner（当前作用域）
+    console.log(outerVar);  // outer（上一级作用域）
+    console.log(global);    // global（全局作用域）
+  }
+  
+  inner();
+}
+
+outer();
+```
+
+#### this 指向规则
+
+`this` 的指向在函数调用时确定，遵循以下规则（优先级从高到低）：
+
+**1. 箭头函数**：继承外层作用域的 `this`
+```javascript
+const obj = {
+  name: 'Object',
+  getName: () => {
+    return this.name; // this 指向全局对象
+  }
+};
+```
+
+**2. new 绑定**：指向新创建的对象
+```javascript
+function Person(name) {
+  this.name = name; // this 指向新创建的对象
+}
+
+const person = new Person('John');
+```
+
+**3. 显式绑定**：`call`、`apply`、`bind` 指定 `this`
+```javascript
+function greet() {
+  return this.name;
+}
+
+const obj = { name: 'John' };
+greet.call(obj);    // 'John'
+greet.apply(obj);   // 'John'
+const bound = greet.bind(obj);
+bound();            // 'John'
+```
+
+**4. 隐式绑定**：对象方法调用，`this` 指向调用对象
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name; // this 指向 obj
+  }
+};
+
+obj.getName(); // 'Object'
+```
+
+**5. 默认绑定**：普通函数调用，`this` 指向全局对象（严格模式下为 `undefined`）
+```javascript
+function test() {
+  console.log(this); // 浏览器中指向 window
+}
+
+test(); // window
+```
+
+### 常见 this 指向问题
+
+**问题1：方法赋值后丢失 this**
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return this.name;
+  }
+};
+
+const getName = obj.getName;
+getName(); // undefined（this 指向全局对象）
+
+// 解决：使用 bind
+const getName = obj.getName.bind(obj);
+getName(); // 'Object'
+```
+
+**问题2：回调函数中的 this**
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    setTimeout(function() {
+      console.log(this.name); // undefined（this 指向全局对象）
+    }, 100);
+  }
+};
+
+// 解决1：使用箭头函数
+const obj = {
+  name: 'Object',
+  getName: function() {
+    setTimeout(() => {
+      console.log(this.name); // 'Object'
+    }, 100);
+  }
+};
+
+// 解决2：保存 this
+const obj = {
+  name: 'Object',
+  getName: function() {
+    const self = this;
+    setTimeout(function() {
+      console.log(self.name); // 'Object'
+    }, 100);
+  }
+};
+```
+
+## 延伸追问
+
+### 1. var、let、const 的区别？
+
+**回答**：主要区别：
+
+| 特性 | var | let | const |
+|------|-----|-----|-------|
+| **作用域** | 函数作用域 | 块级作用域 | 块级作用域 |
+| **变量提升** | 提升并初始化为 undefined | 提升但不初始化（TDZ） | 提升但不初始化（TDZ） |
+| **重复声明** | 允许 | 不允许 | 不允许 |
+| **重新赋值** | 允许 | 允许 | 不允许 |
+| **暂时性死区** | 无 | 有 | 有 |
+
+**示例**：
+```javascript
+// var 的问题
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100); // 3, 3, 3
+}
+
+// let 解决
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100); // 0, 1, 2
+}
+
+// const 用于常量
+const PI = 3.14159;
+PI = 3.14; // 报错：Assignment to constant variable
+```
+
+### 2. 什么是变量提升（Hoisting）？
+
+**回答**：变量提升是 JavaScript 的机制，变量和函数声明会被提升到作用域顶部。
+
+```javascript
+// 代码
+console.log(x); // undefined（不会报错）
+var x = 5;
+
+// 实际执行顺序
+var x;           // 声明提升
+console.log(x);  // undefined
+x = 5;           // 赋值
+
+// let 和 const 的提升（暂时性死区）
+console.log(y); // 报错：Cannot access 'y' before initialization
+let y = 5;
+
+// 函数提升
+sayHello(); // 'Hello'（函数声明会完全提升）
+
+function sayHello() {
+  console.log('Hello');
+}
+```
+
+### 3. 如何改变 this 的指向？
+
+**回答**：三种方法：
+
+**1. call()**：立即调用，参数逐个传递
+```javascript
+function greet(greeting, punctuation) {
+  return greeting + ' ' + this.name + punctuation;
+}
+
+const obj = { name: 'John' };
+greet.call(obj, 'Hello', '!'); // 'Hello John!'
+```
+
+**2. apply()**：立即调用，参数以数组传递
+```javascript
+greet.apply(obj, ['Hello', '!']); // 'Hello John!'
+```
+
+**3. bind()**：返回新函数，不立即调用
+```javascript
+const boundGreet = greet.bind(obj);
+boundGreet('Hello', '!'); // 'Hello John!'
+```
+
+### 4. 箭头函数和普通函数的区别？
+
+**回答**：主要区别：
+
+1. **this 绑定**：箭头函数没有自己的 `this`，继承外层作用域
+2. **arguments**：箭头函数没有 `arguments` 对象
+3. **不能作为构造函数**：不能使用 `new` 调用
+4. **没有 prototype**：箭头函数没有 `prototype` 属性
+
+```javascript
+// 普通函数
+function normal() {
+  console.log(this);        // 调用时确定
+  console.log(arguments);   // 有 arguments
+}
+
+// 箭头函数
+const arrow = () => {
+  console.log(this);        // 继承外层 this
+  // console.log(arguments); // 报错：arguments is not defined
+};
+
+// 构造函数
+function Person(name) {
+  this.name = name;
+}
+const person = new Person('John'); // 可以
+
+const ArrowPerson = (name) => {
+  this.name = name;
+};
+// const arrowPerson = new ArrowPerson('John'); // 报错
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

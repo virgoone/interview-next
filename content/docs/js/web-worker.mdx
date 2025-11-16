@@ -1,0 +1,28 @@
+---
+title: Web Worker
+---
+
+# Web Worker 是什么？
+
+## 核心答案
+
+**1. 定义与核心作用**Web Worker 是浏览器端多线程解决方案，解决 JS 单线程下长时间计算阻塞 UI 渲染的问题，允许在后台线程执行脚本，主线程与后台线程通过消息通信，互不干扰。
+
+**2. 核心特性**后台线程独立于主线程；通过postMessage传递数据（基于结构化克隆算法，不支持函数、DOM节点等）；无法访问DOM/BOM，仅支持部分JS API；分为专用Worker、共享Worker、Service Worker三类。
+
+**3. 典型场景**大数据处理、复杂计算、加密解密、长时间轮询等。
+
+## 延伸追问
+
+- **1. Web Worker与主线程通信的数据是深拷贝吗？**——不是，基于结构化克隆算法序列化，不支持函数、DOM节点等特殊类型。
+
+- **2. Service Worker和Dedicated Worker的核心区别？**——Service Worker用于离线缓存/消息推送（代理服务器），Dedicated Worker仅与创建它的主线程通信。
+
+- **3. 如何终止Web Worker？**——主线程调用worker.terminate()或Worker内部执行self.close()。
+
+- **4. Web Worker有哪些性能注意点？**——避免频繁通信，大数据传输优先用ArrayBuffer减少序列化开销。
+
+- **5. 浏览器对Web Worker的兼容性如何？**——现代浏览器均支持，IE浏览器不兼容。
+
+> （注：文档部分内容可能由 AI 生成）
+

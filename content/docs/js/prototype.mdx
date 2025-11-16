@@ -1,0 +1,323 @@
+---
+title: 原型与原型链
+---
+
+# JavaScript 中的原型和原型链是什么？
+
+## 核心答案
+
+**原型（Prototype）**是 JavaScript 实现继承的机制。每个对象都有一个指向其原型对象的内部链接（`__proto__`），通过这个链接可以访问原型对象的属性和方法。
+
+### 原型的基本概念
+
+**1. 构造函数（Constructor）**
+- 用于创建对象的函数
+- 通常首字母大写
+- 使用 `new` 关键字调用
+
+```javascript
+function Person(name) {
+  this.name = name;
+}
+
+const person = new Person('John');
+```
+
+**2. 原型对象（Prototype）**
+- 每个函数都有一个 `prototype` 属性
+- 指向一个对象，这个对象是实例的原型
+- 实例可以通过 `__proto__` 访问原型
+
+```javascript
+function Person(name) {
+  this.name = name;
+}
+
+// 在原型上添加方法
+Person.prototype.sayHello = function() {
+  return 'Hello, ' + this.name;
+};
+
+const person = new Person('John');
+person.sayHello(); // 'Hello, John'
+
+// person.__proto__ === Person.prototype
+```
+
+**3. 原型链（Prototype Chain）**
+- 对象查找属性/方法的机制
+- 先在自身查找，找不到则沿着 `__proto__` 向上查找
+- 直到找到 `Object.prototype`（原型链的顶端）
+
+```javascript
+function Person(name) {
+  this.name = name;
+}
+
+Person.prototype.sayHello = function() {
+  return 'Hello, ' + this.name;
+};
+
+const person = new Person('John');
+
+// 查找顺序：
+// 1. person 自身
+// 2. Person.prototype
+// 3. Object.prototype
+// 4. null（原型链终点）
+
+console.log(person.toString()); // 来自 Object.prototype
+```
+
+### 原型链图示
+
+```
+person
+  ├── name: 'John'                    (自身属性)
+  └── __proto__
+      └── Person.prototype
+          ├── sayHello: function      (原型方法)
+          └── __proto__
+              └── Object.prototype
+                  ├── toString        (Object 方法)
+                  ├── valueOf
+                  └── __proto__
+                      └── null        (原型链终点)
+```
+
+### 原型相关方法
+
+**1. Object.getPrototypeOf()**：获取对象的原型
+```javascript
+Object.getPrototypeOf(person) === Person.prototype; // true
+```
+
+**2. Object.setPrototypeOf()**：设置对象的原型
+```javascript
+const obj = {};
+Object.setPrototypeOf(obj, Person.prototype);
+```
+
+**3. Object.create()**：创建以指定对象为原型的新对象
+```javascript
+const person = Object.create(Person.prototype);
+```
+
+**4. instanceof**：检查对象是否是某个构造函数的实例
+```javascript
+person instanceof Person;  // true
+person instanceof Object;  // true
+```
+
+**5. hasOwnProperty()**：检查属性是否是自身属性
+```javascript
+person.hasOwnProperty('name');        // true（自身属性）
+person.hasOwnProperty('sayHello');    // false（原型属性）
+```
+
+## 延伸追问
+
+### 1. 如何实现继承？
+
+**回答**：几种继承方式：
+
+**1. 原型链继承**
+```javascript
+function Parent(name) {
+  this.name = name;
+}
+
+Parent.prototype.sayName = function() {
+  return this.name;
+};
+
+function Child(name, age) {
+  Parent.call(this, name); // 调用父构造函数
+  this.age = age;
+}
+
+// 继承原型
+Child.prototype = Object.create(Parent.prototype);
+Child.prototype.constructor = Child;
+
+Child.prototype.sayAge = function() {
+  return this.age;
+};
+
+const child = new Child('John', 20);
+child.sayName(); // 'John'
+child.sayAge();  // 20
+```
+
+**2. ES6 Class 继承**
+```javascript
+class Parent {
+  constructor(name) {
+    this.name = name;
+  }
+  
+  sayName() {
+    return this.name;
+  }
+}
+
+class Child extends Parent {
+  constructor(name, age) {
+    super(name); // 调用父构造函数
+    this.age = age;
+  }
+  
+  sayAge() {
+    return this.age;
+  }
+}
+
+const child = new Child('John', 20);
+child.sayName(); // 'John'
+child.sayAge();  // 20
+```
+
+**3. 组合继承（推荐）**
+```javascript
+function Parent(name) {
+  this.name = name;
+}
+
+Parent.prototype.sayName = function() {
+  return this.name;
+};
+
+function Child(name, age) {
+  Parent.call(this, name); // 继承属性
+  this.age = age;
+}
+
+Child.prototype = Object.create(Parent.prototype); // 继承方法
+Child.prototype.constructor = Child;
+```
+
+### 2. 原型链继承的问题？
+
+**回答**：主要问题：
+
+**1. 引用类型共享**
+```javascript
+function Parent() {
+  this.colors = ['red', 'blue'];
+}
+
+function Child() {}
+
+Child.prototype = new Parent();
+
+const child1 = new Child();
+const child2 = new Child();
+
+child1.colors.push('green');
+console.log(child2.colors); // ['red', 'blue', 'green']（共享了）
+```
+
+**2. 无法向父构造函数传参**
+```javascript
+function Parent(name) {
+  this.name = name;
+}
+
+function Child() {}
+
+Child.prototype = new Parent(); // 无法传参
+```
+
+**3. 构造函数指向错误**
+```javascript
+Child.prototype = new Parent();
+console.log(Child.prototype.constructor); // Parent（应该是 Child）
+```
+
+### 3. Object.create() 和 new 的区别？
+
+**回答**：
+
+**Object.create()**：
+- 创建一个新对象，以指定对象为原型
+- 不调用构造函数
+- 更灵活，可以创建没有原型的对象
+
+```javascript
+const obj = Object.create(Person.prototype);
+// obj 的原型是 Person.prototype，但没有调用 Person 构造函数
+```
+
+**new**：
+- 创建新对象
+- 调用构造函数
+- 设置原型链
+- 返回新对象
+
+```javascript
+const person = new Person('John');
+// 1. 创建新对象
+// 2. 设置原型链
+// 3. 调用 Person('John')
+// 4. 返回新对象
+```
+
+### 4. 如何判断属性是自身属性还是原型属性？
+
+**回答**：几种方法：
+
+**1. hasOwnProperty()**
+```javascript
+person.hasOwnProperty('name');        // true
+person.hasOwnProperty('sayHello');    // false
+```
+
+**2. Object.hasOwn()**（ES2022）
+```javascript
+Object.hasOwn(person, 'name');        // true
+Object.hasOwn(person, 'sayHello');    // false
+```
+
+**3. in 操作符**（检查整个原型链）
+```javascript
+'name' in person;        // true（自身属性）
+'sayHello' in person;    // true（原型属性）
+'toString' in person;    // true（Object 原型属性）
+```
+
+**4. Object.keys()**（只返回自身可枚举属性）
+```javascript
+Object.keys(person); // ['name']
+```
+
+### 5. 如何修改原型链？
+
+**回答**：修改方法：
+
+**1. 直接修改原型对象**
+```javascript
+Person.prototype.newMethod = function() {
+  return 'new method';
+};
+// 所有实例都可以访问
+```
+
+**2. 替换原型对象**
+```javascript
+Person.prototype = {
+  newMethod: function() {
+    return 'new method';
+  }
+};
+// 注意：需要重新设置 constructor
+Person.prototype.constructor = Person;
+```
+
+**3. 使用 Object.setPrototypeOf()**
+```javascript
+Object.setPrototypeOf(person, newPrototype);
+// 性能较差，不推荐
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

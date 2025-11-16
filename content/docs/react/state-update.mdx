@@ -1,0 +1,32 @@
+---
+title: React State 更新过程
+---
+
+# React 中 state 从 1 到 2 的更新过程
+
+### React中state从1→2的完整执行过程（基于React 18）
+
+1. **触发交互**：点击按钮时，React合成事件系统捕获点击事件（绑定在根节点，非document），执行绑定的事件处理函数。
+
+2. **发起状态更新**：事件处理函数中调用`setState(2)`（或`setState(prev => prev + 1)`），React将该更新请求加入**更新队列**，标记为"待处理"。
+
+3. **批处理优化**：React 18自动批处理该更新（即使在合成事件中也合并），避免重复渲染。
+
+4. **调度阶段**：调度器（Scheduler）根据更新优先级（此处为用户交互，优先级高），将更新任务放入执行队列。
+
+5. **Reconciliation（可中断）**：
+
+    - 基于Fiber架构，构建`workInProgress` Fiber树，对比当前`current`树与新状态生成的虚拟DOM；
+
+    - 发现state关联的组件需要更新，标记该Fiber节点的"更新副作用"。
+
+6. **Commit（不可中断）**：
+
+    - 执行DOM操作：更新组件对应DOM的内容（如显示"2"）；
+
+    - 调用组件的`useEffect`（若依赖该state）或生命周期钩子（类组件）。
+
+7. **UI渲染完成**：真实DOM更新完毕，用户肉眼可见state从1变为2，Fiber树切换（`workInProgress`树成为新`current`树）。
+
+> （注：文档部分内容可能由 AI 生成）
+

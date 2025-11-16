@@ -1,0 +1,265 @@
+---
+title: CSS 性能优化
+---
+
+# 如何优化 CSS 性能？
+
+## 核心答案
+
+CSS 性能优化主要从**加载性能**、**渲染性能**、**选择器性能**三个方面入手，目标是减少文件大小、加快解析速度、减少重绘重排。
+
+### 优化策略
+
+#### 1. 减少 CSS 文件大小
+
+**压缩 CSS**：
+- 使用工具（如 cssnano）压缩 CSS
+- 删除注释、空白字符
+- 合并相同的选择器和属性
+
+**删除未使用的 CSS**：
+- 使用 PurgeCSS 删除未使用的样式
+- 避免引入整个 CSS 框架，只引入需要的部分
+
+**使用 CSS 变量**：
+```css
+:root {
+  --primary-color: #007bff;
+  --spacing: 16px;
+}
+/* 减少重复代码 */
+```
+
+#### 2. 优化选择器性能
+
+**避免过度嵌套**：
+```css
+/* 不推荐：嵌套过深 */
+.container .wrapper .content .item .link { }
+
+/* 推荐：扁平化选择器 */
+.item-link { }
+```
+
+**避免通用选择器**：
+```css
+/* 不推荐：性能差 */
+* { margin: 0; }
+
+/* 推荐：具体选择器 */
+body, h1, p { margin: 0; }
+```
+
+**优先使用类选择器**：
+```css
+/* 推荐：类选择器性能好 */
+.button { }
+```
+
+#### 3. 减少重绘和重排（Repaint & Reflow）
+
+**重排（Reflow）**：改变元素几何属性（宽高、位置）导致重新计算布局
+**重绘（Repaint）**：改变元素外观（颜色、背景）但不影响布局
+
+**优化方法**：
+
+1. **批量修改 DOM**：
+```javascript
+// 不推荐：多次重排
+element.style.width = '100px';
+element.style.height = '100px';
+
+// 推荐：一次修改
+element.style.cssText = 'width: 100px; height: 100px;';
+```
+
+2. **使用 transform 和 opacity**：
+```css
+/* 推荐：触发合成层，不触发重排 */
+.element {
+  transform: translateX(100px);
+  opacity: 0.5;
+}
+```
+
+3. **使用 will-change**：
+```css
+.element {
+  will-change: transform; /* 提示浏览器优化 */
+}
+```
+
+4. **避免频繁读取布局属性**：
+```javascript
+// 不推荐：强制同步重排
+const width = element.offsetWidth;
+element.style.width = width + 10 + 'px';
+
+// 推荐：批量读取
+const width = element.offsetWidth;
+const height = element.offsetHeight;
+// 然后批量修改
+```
+
+#### 4. 优化加载性能
+
+**关键 CSS 内联**：
+```html
+<style>
+  /* 首屏关键样式 */
+  .header { }
+  .hero { }
+</style>
+```
+
+**异步加载非关键 CSS**：
+```html
+<link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+```
+
+**使用媒体查询**：
+```html
+<link rel="stylesheet" media="print" href="print.css">
+```
+
+#### 5. 使用现代 CSS 特性
+
+**使用 CSS Grid 和 Flexbox**：
+- 减少布局复杂度
+- 减少嵌套层级
+
+**使用 CSS 变量**：
+- 减少重复代码
+- 便于主题切换
+
+## 延伸追问
+
+### 1. 减少重绘和重排的方法有哪些？
+
+**回答**：具体方法：
+
+1. **使用 transform 代替 top/left**：
+```css
+/* 不推荐：触发重排 */
+.element {
+  position: absolute;
+  top: 100px;
+  left: 100px;
+}
+
+/* 推荐：只触发合成 */
+.element {
+  transform: translate(100px, 100px);
+}
+```
+
+2. **使用 visibility 代替 display: none**：
+```css
+/* display: none 会触发重排 */
+.hidden { display: none; }
+
+/* visibility: hidden 只触发重绘 */
+.hidden { visibility: hidden; }
+```
+
+3. **批量修改样式**：
+```javascript
+// 使用 DocumentFragment
+const fragment = document.createDocumentFragment();
+// 添加元素到 fragment
+container.appendChild(fragment);
+```
+
+4. **使用 requestAnimationFrame**：
+```javascript
+function animate() {
+  // 修改样式
+  requestAnimationFrame(animate);
+}
+```
+
+### 2. CSS 选择器的性能如何排序？
+
+**回答**：性能从高到低：
+
+1. **ID 选择器**：`#header` - 最快
+2. **类选择器**：`.container` - 很快
+3. **元素选择器**：`div` - 快
+4. **属性选择器**：`[type="text"]` - 较慢
+5. **伪类选择器**：`:hover` - 较慢
+6. **后代选择器**：`div p` - 慢
+7. **通用选择器**：`*` - 最慢
+
+**建议**：
+- 优先使用类选择器
+- 避免深层嵌套
+- 避免使用通用选择器
+
+### 3. 如何优化 CSS 动画性能？
+
+**回答**：优化方法：
+
+1. **使用 transform 和 opacity**：
+```css
+/* 推荐：GPU 加速 */
+@keyframes slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(100px); }
+}
+```
+
+2. **避免触发重排的属性**：
+```css
+/* 不推荐：触发重排 */
+@keyframes bad {
+  from { left: 0; }
+  to { left: 100px; }
+}
+```
+
+3. **使用 will-change**：
+```css
+.animated {
+  will-change: transform;
+}
+```
+
+4. **减少动画元素数量**：
+- 合并多个动画
+- 使用 CSS 变量控制
+
+5. **使用 requestAnimationFrame**：
+- 确保动画在浏览器重绘前执行
+
+### 4. 如何测量 CSS 性能？
+
+**回答**：测量工具：
+
+1. **Chrome DevTools Performance**：
+   - 录制性能
+   - 查看重排重绘
+   - 分析渲染时间
+
+2. **Lighthouse**：
+   - CSS 文件大小
+   - 未使用的 CSS
+   - 渲染阻塞资源
+
+3. **CSS 选择器性能测试**：
+```javascript
+// 测试选择器性能
+console.time('selector');
+document.querySelectorAll('.test');
+console.timeEnd('selector');
+```
+
+4. **使用 Performance API**：
+```javascript
+performance.mark('css-start');
+// CSS 操作
+performance.mark('css-end');
+performance.measure('css', 'css-start', 'css-end');
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

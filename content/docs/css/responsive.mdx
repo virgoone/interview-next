@@ -1,0 +1,256 @@
+---
+title: 响应式设计
+---
+
+# 如何实现响应式设计？
+
+## 核心答案
+
+响应式设计（Responsive Design）是指网页能够适应不同设备和屏幕尺寸，提供良好的用户体验。主要通过**媒体查询（Media Queries）**、**弹性布局**、**弹性图片**等技术实现。
+
+### 实现响应式设计的方法
+
+#### 1. 媒体查询（Media Queries）
+
+媒体查询是响应式设计的核心，根据设备特性（宽度、高度、方向等）应用不同的样式。
+
+**语法**：
+```css
+@media (条件) {
+  /* 样式规则 */
+}
+
+/* 示例 */
+@media (max-width: 768px) {
+  .container {
+    width: 100%;
+    padding: 10px;
+  }
+}
+```
+
+**常用断点**：
+```css
+/* 移动设备 */
+@media (max-width: 576px) { }
+
+/* 平板设备 */
+@media (min-width: 577px) and (max-width: 768px) { }
+
+/* 桌面设备 */
+@media (min-width: 769px) and (max-width: 992px) { }
+
+/* 大桌面设备 */
+@media (min-width: 993px) { }
+```
+
+#### 2. 视口设置（Viewport）
+
+在 HTML 中设置视口元标签，确保移动设备正确显示：
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+```
+
+**参数说明**：
+- `width=device-width`：宽度等于设备宽度
+- `initial-scale=1.0`：初始缩放比例为 1
+- `maximum-scale=1.0`：最大缩放比例
+- `user-scalable=no`：禁止用户缩放（不推荐）
+
+#### 3. 弹性布局
+
+使用 Flexbox 和 Grid 实现弹性布局：
+
+```css
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.item {
+  flex: 1 1 300px;  /* 最小宽度 300px，可伸缩 */
+}
+```
+
+#### 4. 相对单位
+
+使用相对单位替代固定像素：
+
+- **百分比（%）**：相对于父元素
+- **em**：相对于当前元素字体大小
+- **rem**：相对于根元素字体大小
+- **vw/vh**：相对于视口宽度/高度
+- **fr**：Grid 中的比例单位
+
+```css
+.container {
+  width: 100%;           /* 百分比 */
+  font-size: 1.2rem;     /* rem */
+  padding: 2em;          /* em */
+  height: 50vh;          /* 视口高度 */
+}
+```
+
+#### 5. 弹性图片
+
+确保图片能够自适应容器：
+
+```css
+img {
+  max-width: 100%;
+  height: auto;
+}
+```
+
+或使用 `picture` 元素提供不同尺寸的图片：
+
+```html
+<picture>
+  <source media="(min-width: 800px)" srcset="large.jpg">
+  <source media="(min-width: 400px)" srcset="medium.jpg">
+  <img src="small.jpg" alt="响应式图片">
+</picture>
+```
+
+## 延伸追问
+
+### 1. 媒体查询的常见断点设置有哪些？
+
+**回答**：常用断点方案：
+
+**Bootstrap 5 断点**：
+```css
+/* 超小屏幕（手机） */
+@media (max-width: 575.98px) { }
+
+/* 小屏幕（手机横屏） */
+@media (min-width: 576px) and (max-width: 767.98px) { }
+
+/* 中等屏幕（平板） */
+@media (min-width: 768px) and (max-width: 991.98px) { }
+
+/* 大屏幕（桌面） */
+@media (min-width: 992px) and (max-width: 1199.98px) { }
+
+/* 超大屏幕（大桌面） */
+@media (min-width: 1200px) { }
+```
+
+**Tailwind CSS 断点**：
+```css
+sm: 640px   /* 小屏幕 */
+md: 768px   /* 中等屏幕 */
+lg: 1024px  /* 大屏幕 */
+xl: 1280px  /* 超大屏幕 */
+2xl: 1536px /* 2倍超大屏幕 */
+```
+
+**移动优先（Mobile First）**：
+```css
+/* 默认样式（移动端） */
+.container { width: 100%; }
+
+/* 平板及以上 */
+@media (min-width: 768px) {
+  .container { width: 750px; }
+}
+
+/* 桌面及以上 */
+@media (min-width: 1024px) {
+  .container { width: 1200px; }
+}
+```
+
+### 2. rem 和 em 的区别是什么？
+
+**回答**：
+
+| 特性 | rem | em |
+|------|-----|-----|
+| **参考基准** | 根元素（html）字体大小 | 当前元素字体大小 |
+| **继承影响** | 不受父元素影响 | 受父元素影响 |
+| **使用场景** | 全局尺寸控制 | 相对当前元素 |
+
+**示例**：
+```css
+html { font-size: 16px; }
+
+.parent { font-size: 20px; }
+
+/* rem：始终相对于 16px */
+.child-rem { font-size: 1.5rem; }  /* 24px */
+
+/* em：相对于父元素 20px */
+.child-em { font-size: 1.5em; }     /* 30px */
+```
+
+**推荐**：使用 `rem` 进行全局尺寸控制，使用 `em` 进行相对调整。
+
+### 3. 如何实现移动端适配？
+
+**回答**：移动端适配方案：
+
+**方案1：rem 适配（推荐）**
+```javascript
+// 设置根元素字体大小
+function setRem() {
+  const width = document.documentElement.clientWidth;
+  const rem = width / 10; // 设计稿宽度 375px，分成 10 份
+  document.documentElement.style.fontSize = rem + 'px';
+}
+setRem();
+window.addEventListener('resize', setRem);
+```
+
+**方案2：vw/vh 适配**
+```css
+/* 设计稿 375px，100vw = 375px */
+.container {
+  width: 100vw;
+  font-size: 4vw; /* 相当于 15px */
+}
+```
+
+**方案3：使用 postcss-px-to-viewport**
+自动将 px 转换为 vw，简化开发。
+
+### 4. 响应式图片的最佳实践？
+
+**回答**：
+
+1. **使用 srcset 和 sizes**：
+```html
+<img 
+  src="image.jpg"
+  srcset="image-400.jpg 400w, image-800.jpg 800w, image-1200.jpg 1200w"
+  sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 33vw"
+  alt="响应式图片"
+>
+```
+
+2. **使用 picture 元素**：
+```html
+<picture>
+  <source media="(min-width: 800px)" srcset="desktop.jpg">
+  <source media="(min-width: 400px)" srcset="tablet.jpg">
+  <img src="mobile.jpg" alt="响应式图片">
+</picture>
+```
+
+3. **使用 CSS 背景图片**：
+```css
+.banner {
+  background-image: url('small.jpg');
+}
+
+@media (min-width: 768px) {
+  .banner {
+    background-image: url('large.jpg');
+  }
+}
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

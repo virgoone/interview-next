@@ -1,0 +1,139 @@
+---
+title: 事件循环（Event Loop）
+---
+
+# JavaScript 的事件循环机制是什么？
+
+## 核心答案
+
+事件循环是 JavaScript **单线程异步非阻塞**的核心机制，通过**调用栈 + 任务队列**实现。
+
+### 核心概念（三句话）
+
+1. **调用栈**：执行同步代码，后进先出（LIFO）
+2. **任务队列**：存储异步回调，分为**宏任务队列**和**微任务队列**
+3. **事件循环**：栈空后，先执行**所有微任务**，再执行**一个宏任务**，循环往复
+
+### 执行流程（一句话）
+
+```
+同步代码 → 微任务（全部） → 宏任务（一个） → 微任务（全部） → 宏任务（一个）...
+```
+
+### 任务分类
+
+**宏任务（MacroTask）**：
+- `setTimeout`、`setInterval`
+- I/O 操作
+- UI 渲染
+
+**微任务（MicroTask）**：
+- `Promise.then/catch/finally`
+- `queueMicrotask`
+- `MutationObserver`
+
+**优先级**：微任务 > 宏任务
+
+### 经典示例（必背）
+
+```javascript
+console.log('1');
+
+setTimeout(() => console.log('2'), 0);
+
+Promise.resolve().then(() => console.log('3'));
+
+console.log('4');
+
+// 输出：1, 4, 3, 2
+```
+
+**执行过程**：
+1. 同步代码：`1`、`4`
+2. 栈空，执行微任务：`3`
+3. 执行宏任务：`2`
+
+## 延伸追问
+
+### 1. async/await 的执行顺序？
+
+**回答**：**async/await 是 Promise 的语法糖**：
+
+```javascript
+async function test() {
+  console.log('1');
+  await Promise.resolve();
+  console.log('2');
+}
+
+console.log('3');
+test();
+console.log('4');
+
+// 输出：3, 1, 4, 2
+```
+
+**原因**：`await` 后面的代码被包装成 `Promise.then`，放入微任务队列。
+
+### 2. 为什么 setTimeout 最小延迟是 4ms？
+
+**回答**：**HTML5 规范限制**，防止过度消耗 CPU。实际延迟可能更长，取决于浏览器和系统负载。
+
+### 3. Promise 和 setTimeout 的执行顺序？
+
+**回答**：**Promise（微任务）优先于 setTimeout（宏任务）**：
+
+```javascript
+setTimeout(() => console.log('1'), 0);
+Promise.resolve().then(() => console.log('2'));
+// 输出：2, 1
+```
+
+**原因**：微任务队列优先级更高，会在宏任务之前执行。
+
+### 4. 如何实现 sleep 函数？
+
+**回答**：使用 Promise：
+
+```javascript
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function test() {
+  console.log('开始');
+  await sleep(1000);
+  console.log('1秒后');
+}
+```
+
+### 5. 如何避免回调地狱？
+
+**回答**：三种方案：
+
+**1. Promise 链式调用**
+```javascript
+fetch('/api/data')
+  .then(r => r.json())
+  .then(data => fetch('/api/process', { body: data }))
+  .then(r => r.json())
+  .then(result => console.log(result));
+```
+
+**2. async/await（推荐）**
+```javascript
+async function process() {
+  const response = await fetch('/api/data');
+  const data = await response.json();
+  const result = await processData(data);
+  console.log(result);
+}
+```
+
+**3. Promise.all（并行）**
+```javascript
+const [user, posts] = await Promise.all([
+  fetch('/api/user').then(r => r.json()),
+  fetch('/api/posts').then(r => r.json())
+]);
+```
+
+> （注：文档部分内容可能由 AI 生成）

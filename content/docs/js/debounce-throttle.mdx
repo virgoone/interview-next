@@ -1,0 +1,314 @@
+---
+title: 防抖与节流
+---
+
+# 什么是防抖和节流？如何实现？
+
+## 核心答案
+
+**防抖（Debounce）**和**节流（Throttle）**是两种常用的性能优化技术，用于限制函数的执行频率。
+
+### 防抖（Debounce）
+
+**定义**：在事件被触发 n 秒后再执行回调，如果在这 n 秒内又被触发，则重新计时。
+
+**应用场景**：
+- 搜索框输入（用户停止输入后才搜索）
+- 窗口 resize（窗口大小稳定后才执行）
+- 按钮点击（防止重复提交）
+
+**实现**：
+```javascript
+function debounce(func, delay) {
+  let timeoutId;
+  
+  return function(...args) {
+    const context = this;
+    
+    // 清除之前的定时器
+    clearTimeout(timeoutId);
+    
+    // 设置新的定时器
+    timeoutId = setTimeout(() => {
+      func.apply(context, args);
+    }, delay);
+  };
+}
+
+// 使用示例
+const searchInput = document.getElementById('search');
+const debouncedSearch = debounce(function(query) {
+  console.log('搜索:', query);
+}, 300);
+
+searchInput.addEventListener('input', (e) => {
+  debouncedSearch(e.target.value);
+});
+```
+
+**执行过程**：
+```
+用户输入: a -> 等待 300ms
+用户输入: ab -> 取消上次，等待 300ms
+用户输入: abc -> 取消上次，等待 300ms
+300ms 后无输入 -> 执行搜索 'abc'
+```
+
+### 节流（Throttle）
+
+**定义**：规定在一个单位时间内，只能触发一次函数。如果这个单位时间内触发多次函数，只有一次生效。
+
+**应用场景**：
+- 滚动事件（每隔一段时间执行一次）
+- 鼠标移动（限制 mousemove 频率）
+- 页面滚动加载更多
+
+**实现**：
+```javascript
+function throttle(func, limit) {
+  let inThrottle;
+  
+  return function(...args) {
+    const context = this;
+    
+    if (!inThrottle) {
+      func.apply(context, args);
+      inThrottle = true;
+      
+      setTimeout(() => {
+        inThrottle = false;
+      }, limit);
+    }
+  };
+}
+
+// 使用示例
+const handleScroll = throttle(function() {
+  console.log('滚动事件');
+}, 200);
+
+window.addEventListener('scroll', handleScroll);
+```
+
+**执行过程**：
+```
+滚动事件触发 -> 立即执行
+200ms 内再次触发 -> 忽略
+200ms 后触发 -> 执行
+```
+
+### 时间戳版本（节流）
+
+```javascript
+function throttle(func, limit) {
+  let lastTime = 0;
+  
+  return function(...args) {
+    const now = Date.now();
+    const context = this;
+    
+    if (now - lastTime >= limit) {
+      func.apply(context, args);
+      lastTime = now;
+    }
+  };
+}
+```
+
+### 带立即执行选项的防抖
+
+```javascript
+function debounce(func, delay, immediate = false) {
+  let timeoutId;
+  
+  return function(...args) {
+    const context = this;
+    const callNow = immediate && !timeoutId;
+    
+    clearTimeout(timeoutId);
+    
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      if (!immediate) {
+        func.apply(context, args);
+      }
+    }, delay);
+    
+    if (callNow) {
+      func.apply(context, args);
+    }
+  };
+}
+```
+
+## 延伸追问
+
+### 1. 防抖和节流的区别？
+
+**回答**：核心区别：
+
+| 特性 | 防抖（Debounce） | 节流（Throttle） |
+|------|-----------------|-----------------|
+| **执行时机** | 停止触发后执行 | 固定时间间隔执行 |
+| **适用场景** | 搜索、resize | 滚动、鼠标移动 |
+| **执行频率** | 可能不执行 | 保证执行 |
+
+**示例对比**：
+```javascript
+// 防抖：用户停止输入 300ms 后执行
+输入: a -> ab -> abc -> (300ms 无输入) -> 执行一次
+
+// 节流：每 300ms 最多执行一次
+滚动: 触发 -> 执行 -> (300ms 内触发) -> 忽略 -> (300ms 后触发) -> 执行
+```
+
+### 2. 如何实现一个带取消功能的防抖？
+
+**回答**：添加取消方法：
+
+```javascript
+function debounce(func, delay) {
+  let timeoutId;
+  
+  const debounced = function(...args) {
+    const context = this;
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      func.apply(context, args);
+    }, delay);
+  };
+  
+  // 添加取消方法
+  debounced.cancel = function() {
+    clearTimeout(timeoutId);
+    timeoutId = null;
+  };
+  
+  return debounced;
+}
+
+// 使用
+const debouncedFn = debounce(() => console.log('执行'), 1000);
+debouncedFn();
+debouncedFn.cancel(); // 取消执行
+```
+
+### 3. 如何实现一个带 leading 和 trailing 的节流？
+
+**回答**：支持首次和末次执行：
+
+```javascript
+function throttle(func, limit, options = {}) {
+  let timeoutId;
+  let lastTime = 0;
+  const { leading = true, trailing = true } = options;
+  
+  return function(...args) {
+    const context = this;
+    const now = Date.now();
+    
+    // 首次执行
+    if (!lastTime && !leading) {
+      lastTime = now;
+    }
+    
+    const remaining = limit - (now - lastTime);
+    
+    if (remaining <= 0 || remaining > limit) {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      lastTime = now;
+      func.apply(context, args);
+    } else if (!timeoutId && trailing) {
+      // 末次执行
+      timeoutId = setTimeout(() => {
+        lastTime = leading ? Date.now() : 0;
+        timeoutId = null;
+        func.apply(context, args);
+      }, remaining);
+    }
+  };
+}
+```
+
+### 4. React 中如何使用防抖和节流？
+
+**回答**：在 React 中使用：
+
+**方法1：使用 useCallback + useRef**
+```javascript
+import { useCallback, useRef } from 'react';
+
+function SearchComponent() {
+  const timeoutRef = useRef();
+  
+  const debouncedSearch = useCallback((query) => {
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      console.log('搜索:', query);
+    }, 300);
+  }, []);
+  
+  return (
+    <input onChange={(e) => debouncedSearch(e.target.value)} />
+  );
+}
+```
+
+**方法2：使用自定义 Hook**
+```javascript
+import { useRef, useCallback } from 'react';
+
+function useDebounce(callback, delay) {
+  const timeoutRef = useRef();
+  
+  return useCallback((...args) => {
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      callback(...args);
+    }, delay);
+  }, [callback, delay]);
+}
+
+function SearchComponent() {
+  const debouncedSearch = useDebounce((query) => {
+    console.log('搜索:', query);
+  }, 300);
+  
+  return (
+    <input onChange={(e) => debouncedSearch(e.target.value)} />
+  );
+}
+```
+
+### 5. 防抖和节流的性能优化意义？
+
+**回答**：优化意义：
+
+**1. 减少函数执行次数**
+- 防抖：避免频繁触发（如搜索请求）
+- 节流：限制执行频率（如滚动事件）
+
+**2. 降低资源消耗**
+- 减少 DOM 操作
+- 减少网络请求
+- 减少计算量
+
+**3. 提升用户体验**
+- 避免界面卡顿
+- 减少不必要的操作
+- 提高响应速度
+
+**示例**：
+```javascript
+// 没有防抖：每次输入都请求
+输入 'abc' -> 3 次请求
+
+// 有防抖：只请求一次
+输入 'abc' -> 1 次请求（300ms 后）
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

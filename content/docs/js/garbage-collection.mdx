@@ -1,0 +1,358 @@
+---
+title: 垃圾回收机制
+---
+
+# JavaScript 的垃圾回收机制是什么？
+
+## 核心答案
+
+**垃圾回收（Garbage Collection，GC）**是 JavaScript 引擎自动管理内存的机制，它会自动找出不再使用的变量并释放其占用的内存。
+
+### 垃圾回收的基本概念
+
+**目的**：自动管理内存，防止内存泄漏。
+
+**原理**：找出不再被引用的对象，释放其内存。
+
+**特点**：
+- **自动执行**：开发者无需手动管理
+- **周期性执行**：定期清理不再使用的内存
+- **影响性能**：GC 执行时会暂停代码执行（Stop-The-World）
+
+### 垃圾回收算法
+
+#### 1. 标记清除（Mark-and-Sweep）
+
+**最常用的算法**，分为两个阶段：
+
+**1. 标记阶段（Mark）**
+- 从根对象（全局对象、调用栈）开始
+- 标记所有可达的对象
+- 遍历对象的引用，标记被引用的对象
+
+**2. 清除阶段（Sweep）**
+- 遍历所有对象
+- 清除未标记的对象
+- 释放其内存
+
+**示例**：
+```javascript
+let obj1 = { name: 'obj1' };
+let obj2 = { name: 'obj2' };
+
+obj1.ref = obj2;
+obj2.ref = obj1;
+
+obj1 = null;
+obj2 = null;
+
+// 标记清除：
+// 1. 从根对象开始，找不到 obj1 和 obj2 的引用
+// 2. 标记它们为不可达
+// 3. 清除它们（即使它们互相引用）
+```
+
+**优点**：
+- 可以处理循环引用
+- 算法简单
+
+**缺点**：
+- 可能产生内存碎片
+- 需要遍历所有对象
+
+#### 2. 引用计数（Reference Counting）
+
+**原理**：记录每个对象被引用的次数，引用数为 0 时回收。
+
+**示例**：
+```javascript
+let obj1 = { name: 'obj1' }; // 引用计数：1
+let obj2 = obj1;              // 引用计数：2
+
+obj1 = null;                  // 引用计数：1
+obj2 = null;                  // 引用计数：0，回收
+```
+
+**问题**：无法处理循环引用
+```javascript
+let obj1 = { name: 'obj1' };
+let obj2 = { name: 'obj2' };
+
+obj1.ref = obj2; // obj2 引用计数：2
+obj2.ref = obj1; // obj1 引用计数：2
+
+obj1 = null;     // obj1 引用计数：1（obj2.ref 仍引用）
+obj2 = null;     // obj2 引用计数：1（obj1.ref 仍引用）
+
+// 无法回收，导致内存泄漏
+```
+
+**现代浏览器**：不再使用引用计数，改用标记清除。
+
+#### 3. 分代回收（Generational Collection）
+
+**V8 引擎使用**，将对象分为两代：
+
+**新生代（Young Generation）**
+- 新创建的对象
+- 生命周期短
+- 使用 Scavenge 算法（复制算法）
+- 回收频繁，速度快
+
+**老生代（Old Generation）**
+- 存活时间长的对象
+- 从新生代晋升而来
+- 使用标记清除 + 标记整理
+- 回收较少，但耗时较长
+
+**晋升条件**：
+- 对象在新生代中存活时间超过阈值
+- 新生代空间不足时，部分对象晋升
+
+### 内存泄漏的常见原因
+
+**1. 全局变量**
+```javascript
+// 不推荐：创建全局变量
+function createData() {
+  data = new Array(1000000).fill('data'); // 没有 var/let/const
+}
+
+// 推荐：使用局部变量
+function createData() {
+  const data = new Array(1000000).fill('data');
+}
+```
+
+**2. 闭包**
+```javascript
+// 问题：闭包持有大对象的引用
+function createHandler() {
+  const largeData = new Array(1000000).fill('data');
+  
+  return function() {
+    // 即使不使用 largeData，闭包也会持有引用
+    console.log('Handler');
+  };
+}
+
+// 解决：使用完后清理
+function createHandler() {
+  const largeData = new Array(1000000).fill('data');
+  
+  return function() {
+    console.log('Handler');
+    largeData = null; // 清理引用
+  };
+}
+```
+
+**3. 事件监听器未移除**
+```javascript
+// 问题：事件监听器未移除
+element.addEventListener('click', handler);
+
+// 解决：组件卸载时移除
+useEffect(() => {
+  element.addEventListener('click', handler);
+  return () => {
+    element.removeEventListener('click', handler);
+  };
+}, []);
+```
+
+**4. 定时器未清除**
+```javascript
+// 问题：定时器未清除
+const timer = setInterval(() => {
+  console.log('tick');
+}, 1000);
+
+// 解决：清除定时器
+useEffect(() => {
+  const timer = setInterval(() => {
+    console.log('tick');
+  }, 1000);
+  
+  return () => {
+    clearInterval(timer);
+  };
+}, []);
+```
+
+**5. DOM 引用**
+```javascript
+// 问题：DOM 引用未清理
+const elements = document.querySelectorAll('.item');
+
+// 解决：使用完后清理
+const elements = document.querySelectorAll('.item');
+// 使用 elements
+elements = null; // 清理引用
+```
+
+## 延伸追问
+
+### 1. 如何检测内存泄漏？
+
+**回答**：检测方法：
+
+**1. Chrome DevTools Memory**
+- 使用 Heap Snapshot
+- 对比多个快照
+- 查找未释放的对象
+
+**2. Performance Monitor**
+- 监控内存使用
+- 查看内存趋势
+- 发现内存泄漏
+
+**3. 代码检查**
+- 检查全局变量
+- 检查事件监听器
+- 检查定时器
+- 检查闭包
+
+**4. 使用工具**
+```javascript
+// 监控内存使用
+setInterval(() => {
+  const memory = performance.memory;
+  console.log({
+    used: memory.usedJSHeapSize,
+    total: memory.totalJSHeapSize,
+    limit: memory.jsHeapSizeLimit
+  });
+}, 1000);
+```
+
+### 2. 如何优化内存使用？
+
+**回答**：优化方法：
+
+**1. 及时清理引用**
+```javascript
+// 使用完后设置为 null
+let largeData = new Array(1000000).fill('data');
+// 使用 largeData
+largeData = null; // 清理引用
+```
+
+**2. 避免全局变量**
+```javascript
+// 不推荐
+window.data = largeData;
+
+// 推荐：使用模块作用域
+const data = largeData;
+```
+
+**3. 使用 WeakMap/WeakSet**
+```javascript
+// WeakMap 的键是弱引用，不影响垃圾回收
+const weakMap = new WeakMap();
+weakMap.set(obj, data);
+// obj 被回收时，weakMap 中的条目也会被回收
+```
+
+**4. 分批处理大数据**
+```javascript
+// 不推荐：一次性处理大量数据
+const results = largeArray.map(process);
+
+// 推荐：分批处理
+function processBatch(array, batchSize = 1000) {
+  for (let i = 0; i < array.length; i += batchSize) {
+    const batch = array.slice(i, i + batchSize);
+    batch.forEach(process);
+    // 每批处理完后，可以触发 GC
+  }
+}
+```
+
+### 3. V8 引擎的垃圾回收策略？
+
+**回答**：V8 的策略：
+
+**1. 分代回收**
+- 新生代：使用 Scavenge 算法
+- 老生代：使用标记清除 + 标记整理
+
+**2. 增量标记（Incremental Marking）**
+- 将标记过程分成多个小步骤
+- 与代码执行交替进行
+- 减少暂停时间
+
+**3. 并发标记（Concurrent Marking）**
+- 在后台线程进行标记
+- 不阻塞主线程
+- 提高性能
+
+**4. 空闲时回收（Idle-Time GC）**
+- 利用空闲时间进行 GC
+- 减少对用户交互的影响
+
+### 4. 如何手动触发垃圾回收？
+
+**回答**：方法：
+
+**1. Chrome DevTools**
+- 打开 DevTools
+- Memory 面板
+- 点击"Collect garbage"按钮
+
+**2. 代码触发（不推荐）**
+```javascript
+// 仅在开发环境使用
+if (global.gc) {
+  global.gc();
+}
+```
+
+**3. 内存压力**
+```javascript
+// 创建大量对象，触发 GC
+for (let i = 0; i < 1000000; i++) {
+  new Array(1000).fill(0);
+}
+```
+
+**注意**：通常不需要手动触发，让引擎自动管理即可。
+
+### 5. WeakMap 和 WeakSet 的作用？
+
+**回答**：作用：
+
+**WeakMap**：
+- 键必须是对象
+- 键是弱引用，不影响垃圾回收
+- 适合存储对象的元数据
+
+```javascript
+const weakMap = new WeakMap();
+const obj = {};
+
+weakMap.set(obj, 'metadata');
+// obj 被回收时，weakMap 中的条目也会被回收
+```
+
+**WeakSet**：
+- 值必须是对象
+- 值是弱引用
+- 适合存储对象集合
+
+```javascript
+const weakSet = new WeakSet();
+const obj = {};
+
+weakSet.add(obj);
+// obj 被回收时，weakSet 中的条目也会被回收
+```
+
+**应用场景**：
+- DOM 节点关联数据
+- 对象缓存
+- 避免内存泄漏
+
+> （注：文档部分内容可能由 AI 生成）
+

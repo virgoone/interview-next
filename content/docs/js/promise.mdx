@@ -1,0 +1,191 @@
+---
+title: Promise 核心概念与实现原理
+---
+
+# Promise 核心概念与实现原理
+
+首先得明确：Promise 是 JavaScript 中用于处理**异步操作**的解决方案，它把异步操作的"结果状态"和"后续处理逻辑"分离开，避免了层层嵌套的"回调地狱"，同时让异步代码的执行顺序和错误处理更清晰。
+
+## 一、先搞懂 Promise 的核心特性（用大白话讲）
+
+在说实现前，先记住 Promise 的 3 个关键特点，这是实现的核心依据：
+
+1. **三种固定状态**：初始化是 `pending`（等待中），只能变成 `fulfilled`（成功）或 `rejected`（失败），状态一旦变了就再也改不了（比如成功了就不能再失败）。
+
+2. **保存结果**：成功时存 `value`（结果值），失败时存 `reason`（错误原因），状态变了就把结果"焊死"在 Promise 里。
+
+3. **链式调用**：通过 `.then()` 方法指定成功/失败的回调，`.then()` 会返回一个新的 Promise，所以能一直 `.then().then()` 串下去。
+
+举个最常见的例子：用 Promise 封装定时器，就能避免回调嵌套：
+
+```javascript
+
+// 用 Promise 封装异步操作（定时器）
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(`延迟${ms}ms后成功`), ms);
+  });
+}
+
+// 链式调用，逻辑清晰
+delay(1000)
+  .then((res) => {
+    console.log(res); // 1秒后输出：延迟1000ms后成功
+    return delay(500); // 返回新的 Promise，实现链式
+  })
+  .then((res) => console.log(res)); // 再等500ms输出：延迟500ms后成功
+```
+
+## 二、Promise 实现原理（手把手拆解核心逻辑）
+
+我们自己写一个简化版 Promise（叫 MyPromise），就能彻底搞懂它的工作机制。核心就三件事：**管理状态和结果**、**实现 resolve/reject 方法**、**实现 then 方法**。
+
+### 1. 第一步：搭建构造函数，管理核心状态
+
+Promise 是个构造函数，new 的时候要传一个 executor 函数（就是 (resolve, reject) => {} 这个参数），executor 会立即执行。我们先把状态、结果存起来：
+
+```javascript
+
+class MyPromise {
+  constructor(executor) {
+    // 1. 初始化状态和结果
+    this.status = 'pending'; // 初始状态：等待中
+    this.value = undefined; // 成功的结果
+    this.reason = undefined; // 失败的原因
+
+    // 2. 定义 resolve 方法：改变状态为成功，保存结果
+    const resolve = (value) => {
+      // 状态一旦改变就不能再改，所以先判断是 pending 才执行
+      if (this.status === 'pending') {
+        this.status = 'fulfilled';
+        this.value = value;
+      }
+    };
+
+    // 3. 定义 reject 方法：改变状态为失败，保存错误
+    const reject = (reason) => {
+      if (this.status === 'pending') {
+        this.status = 'rejected';
+        this.reason = reason;
+      }
+    };
+
+    // 4. 立即执行 executor，传入 resolve 和 reject
+    try {
+      executor(resolve, reject); // 万一 executor 里抛错，直接走 reject
+    } catch (err) {
+      reject(err);
+    }
+  }
+}
+```
+
+到这一步，我们的 MyPromise 已经能管理状态了。比如 new MyPromise((resolve) => resolve(1)) 后，status 会变成 fulfilled，value 是 1。
+
+### 2. 第二步：实现 then 方法（核心中的核心）
+
+then 方法的作用是"注册回调"：如果 Promise 已经成功/失败，直接执行对应的回调；如果还在 pending（比如 executor 里有定时器），就先把回调存起来，等状态变了再执行。
+
+另外，then 要返回新的 Promise 才能链式调用，所以还要处理回调的返回值。
+
+```javascript
+
+class MyPromise {
+  // ... 上面的构造函数代码不变 ...
+
+  then(onFulfilled, onRejected) {
+    // 为了链式调用，返回新的 Promise
+    return new MyPromise((nextResolve, nextReject) => {
+      // 1. 处理成功的情况：如果状态是 fulfilled，执行 onFulfilled
+      if (this.status === 'fulfilled') {
+        try {
+          // 拿到上一个 Promise 的结果，传给 onFulfilled
+          const result = onFulfilled(this.value);
+          // 关键：把当前回调的结果，传给下一个 Promise 的 resolve
+          nextResolve(result);
+        } catch (err) {
+          // 回调里抛错，下一个 Promise 就失败
+          nextReject(err);
+        }
+      }
+
+      // 2. 处理失败的情况：类似成功逻辑
+      if (this.status === 'rejected') {
+        try {
+          const result = onRejected(this.reason);
+          nextResolve(result);
+        } catch (err) {
+          nextReject(err);
+        }
+      }
+
+      // 3. 处理 pending 情况（比如 executor 里有定时器）
+      if (this.status === 'pending') {
+        // 把回调存到数组里，等状态变了再执行
+        this.onFulfilledCallbacks = [onFulfilled];
+        this.onRejectedCallbacks = [onRejected];
+        // 这里简化了，实际要支持多个 then 注册，应该用 push 而不是赋值
+      }
+    });
+  }
+}
+```
+
+这里有个问题：如果 executor 里是异步操作（比如 setTimeout），then 调用时 status 还是 pending，回调会存在数组里。那什么时候执行这些回调？—— 得在 resolve/reject 里加一段逻辑，状态变了就遍历执行回调：
+
+```javascript
+
+// 在 MyPromise 的构造函数里，修改 resolve 和 reject：
+const resolve = (value) => {
+  if (this.status === 'pending') {
+    this.status = 'fulfilled';
+    this.value = value;
+    // 状态变成功后，执行存起来的成功回调
+    this.onFulfilledCallbacks.forEach(cb => cb(this.value));
+  }
+};
+
+const reject = (reason) => {
+  if (this.status === 'pending') {
+    this.status = 'rejected';
+    this.reason = reason;
+    // 状态变失败后，执行存起来的失败回调
+    this.onRejectedCallbacks.forEach(cb => cb(this.reason));
+  }
+};
+```
+
+现在测试一下：new MyPromise((resolve) => setTimeout(() => resolve(2), 1000)).then(res => console.log(res)) —— 1秒后会输出 2，完美！
+
+### 3. 第三步：补充 catch 方法（语法糖）
+
+catch 其实就是 then 的简化版，只传 onRejected 回调，不传 onFulfilled，实现很简单：
+
+```javascript
+
+class MyPromise {
+  // ... 其他代码 ...
+  catch(onRejected) {
+    return this.then(undefined, onRejected);
+  }
+}
+```
+
+## 三、核心原理总结（一句话记重点）
+
+
+      Promise 本质是"状态管理器+回调注册器"：用 pending/fulfilled/rejected 管理异步操作的结果状态，通过 resolve/reject 改变状态并保存结果，用 then 方法注册回调（状态就绪直接执行，未就绪则缓存），再通过返回新 Promise 实现链式调用，最终解决异步代码的嵌套和混乱问题。
+    
+
+## 四、常见面试追问（提前备好）
+
+- **问：Promise 的 then 为什么能链式调用？**
+答：因为 then 方法会返回一个**新的 Promise**（不是原来的那个），新 Promise 的状态由上一个 then 回调的返回值决定——如果回调返回普通值，新 Promise 就成功；如果返回 Promise，新 Promise 会"继承"它的状态；如果回调抛错，新 Promise 就失败。
+
+- **问：Promise 有哪些静态方法？比如 Promise.resolve 是干嘛的？**
+答：静态方法是直接挂在 Promise 上的，比如 resolve、reject、all、race。Promise.resolve(x) 相当于"快速创建一个成功的 Promise"：如果 x 本身是 Promise，就直接返回它；如果是普通值，就创建一个成功状态的 Promise 包裹这个值。
+
+- **问：Promise.all 和 Promise.race 的区别？**
+答：all 接收一个 Promise 数组，**全部成功才成功**，结果是数组按顺序排列；只要有一个失败，就直接失败。race 也是接收数组，但**谁先完成就取谁的结果**（不管成功还是失败），比如用它做请求超时控制。
+> （注：文档部分内容可能由 AI 生成）
+

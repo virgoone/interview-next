@@ -1,0 +1,308 @@
+---
+title: 闭包（Closure）
+---
+
+# 什么是闭包？闭包的应用场景和注意事项？
+
+## 核心答案
+
+**闭包（Closure）**是指函数能够访问其外部（词法）作用域中的变量，即使外部函数已经执行完毕。闭包是 JavaScript 的一个重要特性，它让函数"记住"并访问创建时的环境。
+
+### 闭包的定义
+
+闭包的形成需要满足三个条件：
+1. **嵌套函数**：内部函数定义在外部函数内部
+2. **内部函数引用外部变量**：内部函数使用了外部函数的变量
+3. **内部函数被返回或传递**：内部函数在外部函数执行完后仍可被调用
+
+### 闭包的基本示例
+
+```javascript
+function outerFunction(x) {
+  // 外部函数的变量
+  const outerVariable = x;
+  
+  // 内部函数（闭包）
+  function innerFunction(y) {
+    // 内部函数访问外部函数的变量
+    console.log(outerVariable + y);
+  }
+  
+  // 返回内部函数
+  return innerFunction;
+}
+
+const closure = outerFunction(10);
+closure(5); // 输出：15
+// outerFunction 执行完毕，但 innerFunction 仍能访问 outerVariable
+```
+
+### 闭包的工作原理
+
+1. **词法作用域**：JavaScript 使用词法作用域，函数在定义时就确定了作用域链
+2. **作用域链**：内部函数通过作用域链访问外部函数的变量
+3. **变量持久化**：外部函数执行完毕后，其变量被内部函数引用，不会被垃圾回收
+
+### 经典闭包问题：循环中的闭包
+
+```javascript
+// 问题代码：输出都是 5
+for (var i = 0; i < 5; i++) {
+  setTimeout(function() {
+    console.log(i); // 输出：5, 5, 5, 5, 5
+  }, 100);
+}
+
+// 解决方案1：使用 IIFE（立即执行函数）
+for (var i = 0; i < 5; i++) {
+  (function(j) {
+    setTimeout(function() {
+      console.log(j); // 输出：0, 1, 2, 3, 4
+    }, 100);
+  })(i);
+}
+
+// 解决方案2：使用 let（块级作用域）
+for (let i = 0; i < 5; i++) {
+  setTimeout(function() {
+    console.log(i); // 输出：0, 1, 2, 3, 4
+  }, 100);
+}
+
+// 解决方案3：使用 bind
+for (var i = 0; i < 5; i++) {
+  setTimeout(function(j) {
+    console.log(j);
+  }.bind(null, i), 100);
+}
+```
+
+## 延伸追问
+
+### 1. 闭包的应用场景有哪些？
+
+**回答**：常见应用场景：
+
+**1. 数据私有化（模块模式）**
+```javascript
+function createCounter() {
+  let count = 0; // 私有变量
+  
+  return {
+    increment: function() {
+      count++;
+      return count;
+    },
+    decrement: function() {
+      count--;
+      return count;
+    },
+    getCount: function() {
+      return count;
+    }
+  };
+}
+
+const counter = createCounter();
+console.log(counter.increment()); // 1
+console.log(counter.increment()); // 2
+// count 无法直接访问，实现了数据封装
+```
+
+**2. 函数工厂**
+```javascript
+function createMultiplier(multiplier) {
+  return function(number) {
+    return number * multiplier;
+  };
+}
+
+const double = createMultiplier(2);
+const triple = createMultiplier(3);
+
+console.log(double(5)); // 10
+console.log(triple(5)); // 15
+```
+
+**3. 防抖和节流**
+```javascript
+// 防抖
+function debounce(func, delay) {
+  let timeoutId;
+  return function(...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(this, args), delay);
+  };
+}
+
+// 节流
+function throttle(func, limit) {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+}
+```
+
+**4. 回调函数**
+```javascript
+function fetchData(url, callback) {
+  // 模拟异步请求
+  setTimeout(() => {
+    const data = { url, status: 'success' };
+    callback(data); // 回调函数形成闭包，可以访问外部变量
+  }, 1000);
+}
+
+fetchData('/api/data', function(data) {
+  console.log('Received:', data);
+});
+```
+
+**5. 事件处理**
+```javascript
+function setupButtons() {
+  const buttons = document.querySelectorAll('button');
+  
+  buttons.forEach(function(button, index) {
+    button.addEventListener('click', function() {
+      console.log('Button', index, 'clicked');
+      // 闭包让每个按钮都能访问自己的 index
+    });
+  });
+}
+```
+
+### 2. 闭包可能导致的问题？
+
+**回答**：主要问题：
+
+**1. 内存泄漏**
+```javascript
+// 问题：闭包持有大对象的引用，导致无法释放
+function createHandler() {
+  const largeData = new Array(1000000).fill('data');
+  
+  return function() {
+    // 即使不使用 largeData，闭包也会持有引用
+    console.log('Handler called');
+  };
+}
+
+// 解决：使用完后手动清理
+function createHandler() {
+  const largeData = new Array(1000000).fill('data');
+  
+  return function() {
+    console.log('Handler called');
+    // 使用完后设置为 null
+    largeData = null;
+  };
+}
+```
+
+**2. 性能问题**
+- 闭包会延长变量的生命周期，占用内存
+- 每次创建闭包都会创建新的作用域链，有一定性能开销
+
+**3. 意外的变量共享**
+```javascript
+// 问题：所有闭包共享同一个变量
+function createFunctions() {
+  const result = [];
+  for (var i = 0; i < 3; i++) {
+    result[i] = function() {
+      return i; // 所有函数都返回 3
+    };
+  }
+  return result;
+}
+
+// 解决：使用 IIFE 或 let
+function createFunctions() {
+  const result = [];
+  for (let i = 0; i < 3; i++) {
+    result[i] = function() {
+      return i; // 每个函数返回不同的值
+    };
+  }
+  return result;
+}
+```
+
+### 3. 如何判断是否存在闭包？
+
+**回答**：判断方法：
+
+1. **查看作用域链**：在浏览器 DevTools 中查看函数的 `[[Scopes]]` 属性
+2. **检查变量访问**：函数访问了外部作用域的变量
+3. **函数被返回或传递**：内部函数在外部函数执行完后仍可调用
+
+**示例**：
+```javascript
+function outer() {
+  const x = 10;
+  function inner() {
+    console.log(x); // 访问外部变量，形成闭包
+  }
+  return inner;
+}
+
+const fn = outer();
+// 在 DevTools 中查看 fn 的 [[Scopes]]，可以看到 Closure (outer)
+```
+
+### 4. 闭包和 this 的关系？
+
+**回答**：需要注意 this 的指向：
+
+```javascript
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return function() {
+      return this.name; // this 指向全局对象，不是 obj
+    };
+  }
+};
+
+console.log(obj.getName()()); // undefined（严格模式下）或 ''（非严格模式）
+
+// 解决方案1：使用箭头函数
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return () => {
+      return this.name; // this 指向 obj
+    };
+  }
+};
+
+// 解决方案2：保存 this
+const obj = {
+  name: 'Object',
+  getName: function() {
+    const self = this;
+    return function() {
+      return self.name;
+    };
+  }
+};
+
+// 解决方案3：使用 bind
+const obj = {
+  name: 'Object',
+  getName: function() {
+    return function() {
+      return this.name;
+    }.bind(this);
+  }
+};
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

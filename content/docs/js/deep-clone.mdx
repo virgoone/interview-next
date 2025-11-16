@@ -1,0 +1,327 @@
+---
+title: 深拷贝与浅拷贝
+---
+
+# 什么是深拷贝和浅拷贝？如何实现？
+
+## 核心答案
+
+**浅拷贝（Shallow Copy）**：只复制对象的第一层属性，如果属性值是对象，复制的是引用。
+
+**深拷贝（Deep Copy）**：完全复制对象及其嵌套对象，创建全新的对象，互不影响。
+
+### 浅拷贝示例
+
+```javascript
+const original = {
+  name: 'John',
+  age: 30,
+  address: {
+    city: 'Beijing',
+    country: 'China'
+  }
+};
+
+// 浅拷贝
+const shallow = Object.assign({}, original);
+// 或
+const shallow2 = { ...original };
+
+shallow.name = 'Jane';
+shallow.address.city = 'Shanghai';
+
+console.log(original.name);        // 'John'（基本类型不受影响）
+console.log(original.address.city); // 'Shanghai'（对象类型受影响）
+```
+
+### 深拷贝示例
+
+```javascript
+const original = {
+  name: 'John',
+  age: 30,
+  address: {
+    city: 'Beijing',
+    country: 'China'
+  }
+};
+
+// 深拷贝
+const deep = JSON.parse(JSON.stringify(original));
+
+deep.name = 'Jane';
+deep.address.city = 'Shanghai';
+
+console.log(original.name);        // 'John'（不受影响）
+console.log(original.address.city); // 'Beijing'（不受影响）
+```
+
+### 浅拷贝的实现方法
+
+**1. Object.assign()**
+```javascript
+const copy = Object.assign({}, original);
+```
+
+**2. 展开运算符**
+```javascript
+const copy = { ...original };
+```
+
+**3. Array.slice()**（数组）
+```javascript
+const copy = array.slice();
+```
+
+**4. Array.from()**（数组）
+```javascript
+const copy = Array.from(array);
+```
+
+### 深拷贝的实现方法
+
+**1. JSON.parse(JSON.stringify())**（简单但有限制）
+```javascript
+const deep = JSON.parse(JSON.stringify(original));
+```
+
+**限制**：
+- 不能处理函数、undefined、Symbol
+- 不能处理循环引用
+- 不能处理 Date、RegExp 等特殊对象
+
+**2. 递归实现**
+```javascript
+function deepClone(obj, map = new WeakMap()) {
+  // 处理 null 和基本类型
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  // 处理循环引用
+  if (map.has(obj)) {
+    return map.get(obj);
+  }
+  
+  // 处理 Date
+  if (obj instanceof Date) {
+    return new Date(obj);
+  }
+  
+  // 处理 RegExp
+  if (obj instanceof RegExp) {
+    return new RegExp(obj);
+  }
+  
+  // 处理数组
+  if (Array.isArray(obj)) {
+    const copy = [];
+    map.set(obj, copy);
+    obj.forEach((item, index) => {
+      copy[index] = deepClone(item, map);
+    });
+    return copy;
+  }
+  
+  // 处理对象
+  const copy = {};
+  map.set(obj, copy);
+  Object.keys(obj).forEach(key => {
+    copy[key] = deepClone(obj[key], map);
+  });
+  
+  return copy;
+}
+```
+
+**3. 使用第三方库**
+- Lodash 的 `cloneDeep`
+- Ramda 的 `clone`
+
+## 延伸追问
+
+### 1. JSON.parse(JSON.stringify()) 的问题？
+
+**回答**：主要问题：
+
+**1. 丢失函数**
+```javascript
+const obj = {
+  name: 'John',
+  sayHello: function() {
+    return 'Hello';
+  }
+};
+
+const copy = JSON.parse(JSON.stringify(obj));
+console.log(copy.sayHello); // undefined
+```
+
+**2. 丢失 undefined 和 Symbol**
+```javascript
+const obj = {
+  name: 'John',
+  age: undefined,
+  id: Symbol('id')
+};
+
+const copy = JSON.parse(JSON.stringify(obj));
+console.log(copy.age); // 不存在
+console.log(copy.id);  // 不存在
+```
+
+**3. 不能处理循环引用**
+```javascript
+const obj = { name: 'John' };
+obj.self = obj; // 循环引用
+
+JSON.parse(JSON.stringify(obj)); // 报错：Converting circular structure to JSON
+```
+
+**4. Date 对象变成字符串**
+```javascript
+const obj = {
+  date: new Date()
+};
+
+const copy = JSON.parse(JSON.stringify(obj));
+console.log(typeof copy.date); // 'string'
+```
+
+### 2. 如何实现一个完整的深拷贝？
+
+**回答**：考虑各种情况：
+
+```javascript
+function deepClone(obj, map = new WeakMap()) {
+  // 基本类型直接返回
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  // 处理循环引用
+  if (map.has(obj)) {
+    return map.get(obj);
+  }
+  
+  // 处理 Date
+  if (obj instanceof Date) {
+    return new Date(obj.getTime());
+  }
+  
+  // 处理 RegExp
+  if (obj instanceof RegExp) {
+    return new RegExp(obj);
+  }
+  
+  // 处理 Map
+  if (obj instanceof Map) {
+    const copy = new Map();
+    map.set(obj, copy);
+    obj.forEach((value, key) => {
+      copy.set(key, deepClone(value, map));
+    });
+    return copy;
+  }
+  
+  // 处理 Set
+  if (obj instanceof Set) {
+    const copy = new Set();
+    map.set(obj, copy);
+    obj.forEach(value => {
+      copy.add(deepClone(value, map));
+    });
+    return copy;
+  }
+  
+  // 处理数组
+  if (Array.isArray(obj)) {
+    const copy = [];
+    map.set(obj, copy);
+    obj.forEach((item, index) => {
+      copy[index] = deepClone(item, map);
+    });
+    return copy;
+  }
+  
+  // 处理普通对象
+  const copy = {};
+  map.set(obj, copy);
+  
+  // 处理所有属性（包括不可枚举和 Symbol）
+  Reflect.ownKeys(obj).forEach(key => {
+    copy[key] = deepClone(obj[key], map);
+  });
+  
+  return copy;
+}
+```
+
+### 3. 什么时候用浅拷贝，什么时候用深拷贝？
+
+**回答**：选择原则：
+
+**使用浅拷贝**：
+- 对象结构简单，没有嵌套对象
+- 只需要复制第一层属性
+- 性能要求高（深拷贝较慢）
+
+**使用深拷贝**：
+- 对象有嵌套结构
+- 需要完全独立的副本
+- 需要修改嵌套对象而不影响原对象
+
+**示例**：
+```javascript
+// 浅拷贝适用：配置对象
+const config = {
+  theme: 'dark',
+  language: 'zh-CN'
+};
+const userConfig = { ...config };
+
+// 深拷贝适用：复杂对象
+const user = {
+  name: 'John',
+  profile: {
+    age: 30,
+    address: {
+      city: 'Beijing'
+    }
+  }
+};
+const userCopy = deepClone(user);
+```
+
+### 4. WeakMap 在深拷贝中的作用？
+
+**回答**：WeakMap 用于解决循环引用问题：
+
+```javascript
+const obj = {
+  name: 'John'
+};
+obj.self = obj; // 循环引用
+
+// 使用 WeakMap 记录已访问的对象
+function deepClone(obj, map = new WeakMap()) {
+  if (map.has(obj)) {
+    return map.get(obj); // 返回已创建的副本
+  }
+  
+  const copy = {};
+  map.set(obj, copy); // 记录映射关系
+  
+  // ... 复制属性
+  
+  return copy;
+}
+```
+
+**为什么用 WeakMap**：
+- 键必须是对象
+- 弱引用，不影响垃圾回收
+- 适合做临时映射表
+
+> （注：文档部分内容可能由 AI 生成）
+

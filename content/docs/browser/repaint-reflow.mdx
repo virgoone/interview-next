@@ -1,0 +1,324 @@
+---
+title: 重绘与回流
+---
+
+# 什么是重绘（Repaint）和回流（Reflow）？如何优化？
+
+## 核心答案
+
+**重绘（Repaint）**和**回流（Reflow）**是浏览器重新渲染页面的过程，它们是影响页面性能的重要因素。
+
+### 重绘（Repaint）
+
+**定义**：当元素的外观发生变化，但不影响布局时，浏览器只需要重新绘制受影响的部分。
+
+**触发条件**：
+- 改变颜色（`color`、`background-color`）
+- 改变边框样式（`border-style`、`border-color`）
+- 改变可见性（`visibility`）
+- 改变轮廓（`outline`）
+
+**特点**：
+- 不改变元素的几何属性
+- 只影响外观，不影响布局
+- 性能开销相对较小
+
+```css
+/* 触发重绘 */
+.element {
+  color: red;           /* 重绘 */
+  background-color: blue; /* 重绘 */
+  visibility: hidden;    /* 重绘 */
+}
+```
+
+### 回流（Reflow / Layout）
+
+**定义**：当元素的布局属性发生变化，需要重新计算元素的位置和大小时，浏览器会重新布局整个页面或部分页面。
+
+**触发条件**：
+- 改变元素的尺寸（`width`、`height`、`padding`、`margin`、`border`）
+- 改变元素的位置（`position`、`top`、`left`、`right`、`bottom`）
+- 改变元素的显示方式（`display`、`float`、`clear`）
+- 改变字体大小（`font-size`、`line-height`）
+- 添加或删除 DOM 元素
+- 窗口大小改变（`resize`）
+
+**特点**：
+- 改变元素的几何属性
+- 需要重新计算布局
+- 可能触发其他元素的重排
+- 性能开销较大
+
+```css
+/* 触发回流 */
+.element {
+  width: 100px;         /* 回流 */
+  height: 100px;        /* 回流 */
+  margin: 10px;         /* 回流 */
+  position: absolute;   /* 回流 */
+  top: 50px;            /* 回流 */
+}
+```
+
+### 回流和重绘的关系
+
+**回流必然引起重绘**，但重绘不一定引起回流。
+
+```
+回流 → 重绘
+重绘 ✗ 回流
+```
+
+**示例**：
+```javascript
+// 同时触发回流和重绘
+element.style.width = '200px';      // 回流 + 重绘
+element.style.height = '200px';     // 回流 + 重绘
+
+// 只触发重绘
+element.style.color = 'red';        // 只重绘
+element.style.backgroundColor = 'blue'; // 只重绘
+```
+
+### 性能影响
+
+**回流的影响**：
+- 需要重新计算布局
+- 可能影响整个页面或部分页面
+- 性能开销大
+
+**重绘的影响**：
+- 只需要重新绘制
+- 影响范围较小
+- 性能开销相对较小
+
+## 延伸追问
+
+### 1. 如何减少回流和重绘？
+
+**回答**：优化方法：
+
+**1. 批量修改 DOM**
+```javascript
+// 不推荐：多次回流
+element.style.width = '100px';
+element.style.height = '100px';
+element.style.margin = '10px';
+
+// 推荐：一次修改
+element.style.cssText = 'width: 100px; height: 100px; margin: 10px;';
+
+// 或使用 class
+element.className = 'new-style';
+```
+
+**2. 使用 DocumentFragment**
+```javascript
+// 不推荐：多次回流
+for (let i = 0; i < 1000; i++) {
+  const div = document.createElement('div');
+  container.appendChild(div);
+}
+
+// 推荐：使用 DocumentFragment
+const fragment = document.createDocumentFragment();
+for (let i = 0; i < 1000; i++) {
+  const div = document.createElement('div');
+  fragment.appendChild(div);
+}
+container.appendChild(fragment); // 只触发一次回流
+```
+
+**3. 使用 transform 代替 top/left**
+```css
+/* 不推荐：触发回流 */
+.element {
+  position: absolute;
+  top: 100px;
+  left: 100px;
+}
+
+/* 推荐：只触发合成，不触发回流 */
+.element {
+  transform: translate(100px, 100px);
+}
+```
+
+**4. 使用 visibility 代替 display: none**
+```css
+/* display: none 会触发回流 */
+.hidden {
+  display: none;
+}
+
+/* visibility: hidden 只触发重绘 */
+.hidden {
+  visibility: hidden;
+}
+```
+
+**5. 避免频繁读取布局属性**
+```javascript
+// 不推荐：强制同步回流
+const width = element.offsetWidth;  // 触发回流
+element.style.width = width + 10 + 'px'; // 触发回流
+
+// 推荐：批量读取和修改
+const width = element.offsetWidth;
+const height = element.offsetHeight;
+// 然后批量修改
+element.style.cssText = `width: ${width + 10}px; height: ${height + 10}px;`;
+```
+
+**6. 使用 will-change**
+```css
+.element {
+  will-change: transform; /* 提示浏览器优化 */
+}
+```
+
+### 2. 什么是强制同步布局（Forced Synchronous Layout）？
+
+**回答**：强制同步布局是指浏览器在 JavaScript 执行过程中被迫立即计算布局。
+
+**触发条件**：
+- 读取布局属性（`offsetWidth`、`offsetHeight`、`scrollTop` 等）
+- 读取计算样式（`getComputedStyle`）
+
+**问题**：
+- 打断浏览器的优化
+- 可能导致多次回流
+- 严重影响性能
+
+**示例**：
+```javascript
+// 强制同步布局
+for (let i = 0; i < items.length; i++) {
+  const height = items[i].offsetHeight; // 每次循环都触发回流
+  items[i].style.height = height + 10 + 'px';
+}
+
+// 优化：先读取，再修改
+const heights = items.map(item => item.offsetHeight); // 一次性读取
+items.forEach((item, i) => {
+  item.style.height = heights[i] + 10 + 'px'; // 批量修改
+});
+```
+
+### 3. 如何检测页面的回流和重绘？
+
+**回答**：检测方法：
+
+**1. Chrome DevTools Performance**
+- 录制性能
+- 查看 Layout（回流）和 Paint（重绘）事件
+- 分析性能瓶颈
+
+**2. 使用 Performance API**
+```javascript
+performance.mark('start');
+// 执行操作
+performance.mark('end');
+performance.measure('operation', 'start', 'end');
+const measure = performance.getEntriesByName('operation')[0];
+console.log('耗时:', measure.duration);
+```
+
+**3. 使用 requestAnimationFrame**
+```javascript
+let lastTime = performance.now();
+function checkRepaint() {
+  const now = performance.now();
+  if (now - lastTime > 16) { // 超过一帧时间
+    console.log('可能发生了重绘/回流');
+  }
+  lastTime = now;
+  requestAnimationFrame(checkRepaint);
+}
+```
+
+### 4. transform 和 opacity 为什么不会触发回流？
+
+**回答**：原因：
+
+**1. 合成层（Compositing Layer）**
+- `transform` 和 `opacity` 会创建新的合成层
+- 合成层在 GPU 上处理，不触发主线程的回流
+
+**2. 不影响布局**
+- `transform` 只影响视觉效果，不影响文档流
+- `opacity` 只改变透明度，不影响布局
+
+**3. GPU 加速**
+- 浏览器会将合成层交给 GPU 处理
+- GPU 处理速度快，不影响主线程
+
+**示例**：
+```css
+/* 触发回流 */
+.element {
+  top: 100px;      /* 改变位置，触发回流 */
+  left: 100px;
+}
+
+/* 不触发回流，只触发合成 */
+.element {
+  transform: translate(100px, 100px); /* GPU 加速 */
+  opacity: 0.5;                        /* GPU 加速 */
+}
+```
+
+### 5. 如何优化动画性能？
+
+**回答**：优化策略：
+
+**1. 使用 transform 和 opacity**
+```css
+/* 推荐：GPU 加速 */
+@keyframes slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(100px); }
+}
+
+/* 不推荐：触发回流 */
+@keyframes slide {
+  from { left: 0; }
+  to { left: 100px; }
+}
+```
+
+**2. 使用 will-change**
+```css
+.animated {
+  will-change: transform; /* 提示浏览器优化 */
+}
+```
+
+**3. 使用 requestAnimationFrame**
+```javascript
+function animate() {
+  // 修改样式
+  element.style.transform = `translateX(${x}px)`;
+  x += 1;
+  requestAnimationFrame(animate);
+}
+```
+
+**4. 减少重绘区域**
+- 使用 `contain` 属性
+- 避免影响其他元素
+
+**5. 使用 CSS 动画代替 JavaScript 动画**
+```css
+/* 推荐：浏览器优化 */
+.element {
+  animation: slide 1s ease-in-out;
+}
+
+/* 不推荐：JavaScript 控制 */
+element.style.left = x + 'px';
+```
+
+> （注：文档部分内容可能由 AI 生成）
+

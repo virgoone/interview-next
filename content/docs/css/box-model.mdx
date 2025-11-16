@@ -1,0 +1,153 @@
+---
+title: CSS 盒模型
+---
+
+# 解释 CSS 中的盒模型
+
+## 核心答案
+
+CSS 盒模型（Box Model）是 CSS 布局的基础概念，它描述了每个元素在页面中占据的空间。每个元素都被看作一个矩形盒子，由内到外包括：**内容（content）**、**内边距（padding）**、**边框（border）**、**外边距（margin）**。
+
+### 盒模型的组成部分
+
+```
+┌─────────────────────────────────────┐
+│           margin (外边距)            │
+│  ┌───────────────────────────────┐  │
+│  │      border (边框)            │  │
+│  │  ┌─────────────────────────┐  │  │
+│  │  │   padding (内边距)      │  │  │
+│  │  │  ┌───────────────────┐  │  │  │
+│  │  │  │  content (内容)   │  │  │  │
+│  │  │  └───────────────────┘  │  │  │
+│  │  └─────────────────────────┘  │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+```
+
+### 两种盒模型
+
+#### 1. 标准盒模型（content-box，默认）
+
+- **宽度计算**：`width` = 内容宽度
+- **总宽度** = `width` + `padding` + `border` + `margin`
+- 设置 `width: 100px`，实际占用空间可能超过 100px
+
+```css
+.box {
+  box-sizing: content-box; /* 默认值 */
+  width: 100px;
+  padding: 10px;
+  border: 5px solid;
+  /* 总宽度 = 100 + 10*2 + 5*2 = 130px */
+}
+```
+
+#### 2. 怪异盒模型（border-box）
+
+- **宽度计算**：`width` = 内容宽度 + padding + border
+- **总宽度** = `width` + `margin`
+- 设置 `width: 100px`，实际占用空间就是 100px（不包括 margin）
+
+```css
+.box {
+  box-sizing: border-box;
+  width: 100px;
+  padding: 10px;
+  border: 5px solid;
+  /* 总宽度 = 100px（内容宽度 = 100 - 10*2 - 5*2 = 70px） */
+}
+```
+
+### 盒模型属性
+
+- **content（内容）**：元素的实际内容，由 `width` 和 `height` 控制
+- **padding（内边距）**：内容与边框之间的空间，使用 `padding` 设置
+- **border（边框）**：围绕内边距和内容的边框，使用 `border` 设置
+- **margin（外边距）**：元素与其他元素之间的空间，使用 `margin` 设置
+
+## 延伸追问
+
+### 1. 如何在不同浏览器中处理盒模型的差异？
+
+**回答**：处理方法：
+
+1. **统一使用 border-box**：
+   ```css
+   * {
+     box-sizing: border-box;
+   }
+   ```
+   这是现代开发的最佳实践，避免宽度计算问题
+
+2. **使用 CSS Reset 或 Normalize.css**：统一不同浏览器的默认样式
+
+3. **使用 autoprefixer**：自动添加浏览器前缀，处理兼容性问题
+
+4. **测试不同浏览器**：使用 BrowserStack 等工具测试兼容性
+
+### 2. margin 塌陷（Collapsing）是什么？如何解决？
+
+**回答**：margin 塌陷是指相邻元素的垂直外边距会合并，取较大值。
+
+**示例**：
+```css
+.box1 { margin-bottom: 20px; }
+.box2 { margin-top: 30px; }
+/* 实际间距是 30px，不是 50px */
+```
+
+**解决方法**：
+1. 使用 `padding` 代替 `margin`
+2. 使用 `border` 或 `padding` 创建隔离
+3. 使用 `display: flex` 或 `display: grid`
+4. 使用 `overflow: hidden` 创建新的 BFC
+
+### 3. 什么是 BFC（块级格式化上下文）？
+
+**回答**：BFC 是页面中的一块独立渲染区域，内部元素的布局不会影响外部元素。
+
+**创建 BFC 的方法**：
+- `float` 不为 `none`
+- `position` 为 `absolute` 或 `fixed`
+- `display` 为 `inline-block`、`table-cell`、`flex` 等
+- `overflow` 不为 `visible`
+
+**BFC 的作用**：
+- 防止 margin 塌陷
+- 清除浮动
+- 防止元素被浮动元素覆盖
+
+### 4. 如何实现一个自适应的正方形？
+
+**回答**：几种方法：
+
+**方法1：使用 padding-bottom**
+```css
+.square {
+  width: 100%;
+  padding-bottom: 100%; /* 相对于宽度 */
+  background: blue;
+}
+```
+
+**方法2：使用 aspect-ratio（现代浏览器）**
+```css
+.square {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: blue;
+}
+```
+
+**方法3：使用 vw 单位**
+```css
+.square {
+  width: 50vw;
+  height: 50vw;
+  background: blue;
+}
+```
+
+> （注：文档部分内容可能由 AI 生成）
+
