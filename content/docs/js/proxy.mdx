@@ -1,0 +1,264 @@
+---
+title: Proxy 与 defineProperty
+---
+
+# Proxy 相比较于 defineProperty 的优势是什么？
+
+## 核心答案
+
+**Proxy** 是 ES6 引入的元编程特性，比 `Object.defineProperty` 更强大、更灵活。
+
+### 核心区别（一句话）
+
+**defineProperty**：只能拦截**对象属性的读写**  
+**Proxy**：可以拦截**对象的13种操作**（包括属性读写、删除、遍历、函数调用等）
+
+### 对比表格
+
+| 特性 | defineProperty | Proxy |
+|------|---------------|-------|
+| **拦截操作** | 属性读写（get/set） | 13种操作（get/set/delete/has/ownKeys等） |
+| **数组支持** | ❌ 需要特殊处理 | ✅ 原生支持 |
+| **对象新增属性** | ❌ 需要手动监听 | ✅ 自动拦截 |
+| **删除属性** | ❌ 无法拦截 | ✅ 可以拦截（deleteProperty） |
+| **性能** | 较好 | 稍差（但可接受） |
+| **浏览器支持** | 广泛 | 现代浏览器 |
+
+### 代码对比
+
+**defineProperty 的限制**：
+```javascript
+const obj = {};
+let value = 'test';
+
+Object.defineProperty(obj, 'name', {
+  get() {
+    return value;
+  },
+  set(newValue) {
+    value = newValue;
+  }
+});
+
+obj.name = 'new'; // ✅ 可以拦截
+delete obj.name;  // ❌ 无法拦截删除
+obj.age = 20;    // ❌ 无法拦截新增属性
+```
+
+**Proxy 的优势**：
+```javascript
+const obj = new Proxy({}, {
+  get(target, prop) {
+    return target[prop];
+  },
+  set(target, prop, value) {
+    target[prop] = value;
+    return true;
+  },
+  deleteProperty(target, prop) {
+    delete target[prop]; // ✅ 可以拦截删除
+    return true;
+  },
+  has(target, prop) {
+    return prop in target; // ✅ 可以拦截 in 操作符
+  }
+});
+
+obj.name = 'test'; // ✅ 拦截
+delete obj.name;   // ✅ 拦截
+'name' in obj;     // ✅ 拦截
+```
+
+### Proxy 的13种拦截操作
+
+```javascript
+const proxy = new Proxy(target, {
+  get(target, prop) {},           // 读取属性
+  set(target, prop, value) {},   // 设置属性
+  deleteProperty(target, prop) {}, // 删除属性
+  has(target, prop) {},           // in 操作符
+  ownKeys(target) {},             // Object.keys()
+  getOwnPropertyDescriptor() {},  // Object.getOwnPropertyDescriptor()
+  defineProperty() {},            // Object.defineProperty()
+  preventExtensions() {},         // Object.preventExtensions()
+  isExtensible() {},             // Object.isExtensible()
+  getPrototypeOf() {},           // Object.getPrototypeOf()
+  setPrototypeOf() {},           // Object.setPrototypeOf()
+  apply() {},                    // 函数调用
+  construct() {}                 // new 操作符
+});
+```
+
+## 延伸追问
+
+### 1. Vue 2 和 Vue 3 响应式原理的区别？
+
+**回答**：核心区别：
+
+**Vue 2（defineProperty）**：
+```javascript
+// 需要遍历对象所有属性
+Object.keys(data).forEach(key => {
+  Object.defineProperty(data, key, {
+    get() { /* 收集依赖 */ },
+    set() { /* 触发更新 */ }
+  });
+});
+
+// 问题：
+// 1. 无法监听数组索引变化
+// 2. 无法监听对象新增属性
+// 3. 需要递归遍历所有属性
+```
+
+**Vue 3（Proxy）**：
+```javascript
+// 直接代理整个对象
+const reactive = new Proxy(data, {
+  get(target, prop) { /* 收集依赖 */ },
+  set(target, prop, value) { /* 触发更新 */ }
+});
+
+// 优势：
+// 1. 自动监听所有操作（包括新增、删除）
+// 2. 原生支持数组
+// 3. 性能更好
+```
+
+### 2. Proxy 如何实现数组监听？
+
+**回答**：Proxy 原生支持：
+
+```javascript
+const arr = new Proxy([], {
+  get(target, prop) {
+    if (prop === 'push') {
+      return function(...args) {
+        console.log('数组被修改');
+        return Array.prototype.push.apply(target, args);
+      };
+    }
+    return target[prop];
+  },
+  set(target, prop, value) {
+    console.log(`设置 ${prop} = ${value}`);
+    target[prop] = value;
+    return true;
+  }
+});
+
+arr.push(1);        // ✅ 拦截
+arr[0] = 2;        // ✅ 拦截
+arr.length = 0;    // ✅ 拦截
+```
+
+**defineProperty 的问题**：
+```javascript
+// 需要特殊处理数组方法
+const methods = ['push', 'pop', 'shift', 'unshift'];
+methods.forEach(method => {
+  const original = Array.prototype[method];
+  Array.prototype[method] = function(...args) {
+    // 手动触发更新
+    original.apply(this, args);
+  };
+});
+```
+
+### 3. Proxy 的性能问题？
+
+**回答**：性能对比：
+
+**defineProperty**：
+- 初始化时需要遍历所有属性
+- 后续访问性能好
+
+**Proxy**：
+- 初始化快（不需要遍历）
+- 每次操作都有代理开销
+- 但现代浏览器优化后，性能差异可忽略
+
+**实际影响**：
+- 小对象：差异不明显
+- 大对象：Proxy 可能稍慢，但更灵活
+- Vue 3 实际性能优于 Vue 2（因为优化了其他方面）
+
+### 4. Proxy 的常见应用场景？
+
+**回答**：应用场景：
+
+**1. 响应式系统（Vue 3）**
+```javascript
+const reactive = (obj) => new Proxy(obj, {
+  get(target, prop) {
+    track(target, prop); // 收集依赖
+    return target[prop];
+  },
+  set(target, prop, value) {
+    target[prop] = value;
+    trigger(target, prop); // 触发更新
+    return true;
+  }
+});
+```
+
+**2. 数据验证**
+```javascript
+const validator = new Proxy({}, {
+  set(target, prop, value) {
+    if (prop === 'age' && (value < 0 || value > 150)) {
+      throw new Error('Invalid age');
+    }
+    target[prop] = value;
+    return true;
+  }
+});
+```
+
+**3. 属性访问控制**
+```javascript
+const user = new Proxy({}, {
+  get(target, prop) {
+    if (prop === 'password') {
+      throw new Error('Access denied');
+    }
+    return target[prop];
+  }
+});
+```
+
+**4. 函数调用拦截**
+```javascript
+const fn = new Proxy(function() {}, {
+  apply(target, thisArg, args) {
+    console.log('函数被调用', args);
+    return target.apply(thisArg, args);
+  }
+});
+```
+
+### 5. Proxy.revocable 的作用？
+
+**回答**：创建可撤销的代理：
+
+```javascript
+const { proxy, revoke } = Proxy.revocable({}, {
+  get(target, prop) {
+    return target[prop];
+  }
+});
+
+proxy.name = 'test';
+console.log(proxy.name); // 'test'
+
+revoke(); // 撤销代理
+console.log(proxy.name); // 报错：Cannot perform 'get' on a proxy that has been revoked
+```
+
+**应用场景**：
+- 临时代理对象
+- 权限控制
+- 资源清理
+
+> （注：文档部分内容可能由 AI 生成）
+
